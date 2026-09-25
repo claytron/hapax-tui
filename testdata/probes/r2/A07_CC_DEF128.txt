@@ -1,0 +1,7 @@
+# PROBE A07
+VERSION 1
+TRACKNAME A07
+# CC default 128 (range 0-127)
+[CC]
+74:DEFAULT=128 x
+[/CC]

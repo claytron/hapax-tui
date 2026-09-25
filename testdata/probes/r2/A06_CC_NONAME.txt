@@ -1,0 +1,7 @@
+# PROBE A06
+VERSION 1
+TRACKNAME A06
+# CC entry with no name
+[CC]
+74
+[/CC]

@@ -1,0 +1,40 @@
+# PROBE P03 CCSYN: CC syntax variants seen in community files
+VERSION 1
+TRACKNAME P03 CCSYN
+TYPE NULL
+OUTPORT NULL
+OUTCHAN NULL
+INPORT NULL
+INCHAN NULL
+
+[DRUMLANES]
+[/DRUMLANES]
+
+[PC]
+[/PC]
+
+[CC]
+20 S01 plain
+21:DEFAULT=100 S02 default100
+22:Default=100 S03 lowercase default
+23:DEFAULT=NULL S04 default null
+24:100 S05 shorthand 100
+026 S06 leading zero cc26
+120 S07 cc120
+127 S08 cc127
+30:DEFAULT=100	S09 tab separated
+31 S10 dup FIRST
+31 S11 dup SECOND
+[/CC]
+
+[NRPN]
+[/NRPN]
+
+[ASSIGN]
+[/ASSIGN]
+
+[AUTOMATION]
+[/AUTOMATION]
+
+[COMMENT]
+[/COMMENT]

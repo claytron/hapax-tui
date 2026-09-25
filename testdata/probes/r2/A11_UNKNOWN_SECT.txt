@@ -1,0 +1,7 @@
+# PROBE A11
+VERSION 1
+TRACKNAME A11
+# unknown section [FOO]
+[FOO]
+74 x
+[/FOO]

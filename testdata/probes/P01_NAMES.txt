@@ -1,0 +1,46 @@
+# PROBE P01 NAMES: which characters survive in CC and COMMENT names
+VERSION 1
+TRACKNAME P01 NAMES
+TYPE NULL
+OUTPORT NULL
+OUTCHAN NULL
+INPORT NULL
+INCHAN NULL
+
+[DRUMLANES]
+[/DRUMLANES]
+
+[PC]
+[/PC]
+
+[CC]
+1 N01 plain
+2 N02 slash/x
+3 N03 comma,x
+4 N04 paren(x)
+5 N05 dot.x
+6 N06 colon:x
+7 N07 amp&x
+8 N08 apos'x
+9 N09 hash#CUT
+10 n10 lowercase
+11 N11 ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789
+12 N12 é unicode
+13 N13 star*x
+14 N14 excl!x
+[/CC]
+
+[NRPN]
+[/NRPN]
+
+[ASSIGN]
+[/ASSIGN]
+
+[AUTOMATION]
+[/AUTOMATION]
+
+[COMMENT]
+Plain line
+Punct / , . ( ) ! ? : &
+Second line after break
+[/COMMENT]

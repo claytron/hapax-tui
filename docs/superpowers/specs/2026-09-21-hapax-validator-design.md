@@ -1,122 +1,198 @@
 # Hapax Instrument Definition Validator — Design
 
 Date: 2026-09-21
-Revised: 2026-09-25 — Python and Textual replace Go and bubbletea
-Status: approved, ready for implementation planning
+Revised: 2026-09-25 — Python and Textual replace Go and bubbletea; rules rebuilt on hardware probes, firmware binaries and the firmware changelog; firmware selection added
+Status: draft, under review
 
 ## Context
 
 Squarp Hapax instrument definitions are UTF-8 `.txt` files stored in the `HAPAX/` folder of the SD card, alongside projects.
-They name CCs and PCs, configure drum lanes, set input and output MIDI port and channel, and pre-create automation lanes.
+They name CCs and PCs, configure drum lanes, set input and output MIDI port and channel, and pre-create automation lanes and pot assignments.
 
-Editing them by hand is error-prone and the hardware gives poor feedback when a file is malformed.
-Existing third-party checkers are web-based and mostly out of date.
+The Hapax already validates these files, but badly for authoring:
+it rejects the whole file at the **first** bad line with `SYNTAX ERROR line N`, and you only find out after copying the file to the card and loading it.
+Worse, some mistakes load without complaint and silently do nothing.
+This tool reports every problem at once, before the file leaves the computer, for the firmware the file is meant for.
 
-This is the first stage of a larger tool that will eventually grow a [Textual](https://github.com/Textualize/textual) TUI for browsing and editing definitions.
-That stage is explicitly not part of this design.
+This is the first stage of a larger tool that will grow a [Textual](https://github.com/Textualize/textual) TUI for browsing and editing definitions.
+That stage is not part of this design.
 
 ## Scope
 
-A single command that validates definition files and reports problems with line numbers.
-
 ```
-hapax validate [--strict] [files...]
+hapax validate [--strict] [--fw VERSION] [paths...]
 ```
 
-With no file arguments it validates `*.txt` in the current directory.
-It does not try to locate the SD card, whose mount point varies; pass a path instead.
+Each path is a file or a directory; a directory expands to the `*.txt` files directly inside it.
+With no paths it validates the current directory.
+Dotfiles are always skipped: macOS writes a binary `._Name.txt` next to every file it copies to the SD card.
+
+`--fw` selects the target firmware: `3.00`, `3.10`, `3.20` or `3.21`; the default is the latest, `3.21`.
+Older firmware is refused with exit code 2.
+The summary line always names the firmware checked against, so the default is never invisible.
 
 ### Non-goals for v1
 
 - No TUI.
 - No editing or writing of files.
-- No firmware version selection. One ruleset, targeting Hapax OS 3.10.
+- No firmware older than 3.00.
 - No fetching definitions from the community forum or third-party repositories.
 
-## Authoritative source for the format
+## Sources of truth
 
-The Hapax manual (§6.6) documents what definitions do but defers syntax to the example files: "The syntax is quite simple, and self-documented in the examples below."
+In order of authority:
 
-The official example template therefore **is** the specification.
-Every section carries its grammar, ranges, and allowed values as `#` comments.
-Those comments are transcribed into `rules.py`, and the template is kept in `testdata/` as the reference copy.
+1. **Hardware probes** — `testdata/probes/`, run on a Hapax with OS 3.10.
+   Each probe file tests one variant; the recorded outcome is either "loads" or `SYNTAX ERROR line N`.
+   Results are in `testdata/probes/RESULTS.md` and `testdata/probes/r2/RESULTS.md`.
+2. **The firmware changelog**, `https://squarp.net/hapax/firmware/`, for behaviour that changed between versions.
+3. **The firmware binaries** from the same page.
+   `strings hapax.bin` exposes the parser's keyword table; diffing it across all 26 releases dates each keyword.
+   The author's SD-card copy of 3.10 is byte-identical to the published one.
+4. **Squarp's online template**, `https://squarp.net/hapax/instr_def/template.txt`, which tracks the latest firmware.
+   Where it states a range and nothing above contradicts it, the range is treated as enforced — every range that was probed was enforced.
+5. **The manual** (3.10, §6.6), which defers syntax to the template.
 
-Three facts come from the manual rather than the template:
+The template embedded in older definition files, including the author's own, predates several features below.
+It is not a source.
 
-- Automation lanes are capped at 64 per track (§4.1).
-- Automation and assign destinations run `CC0` through `CC119` (§7.9), corroborating the template's ASSIGN documentation.
-- Files are UTF-8 with a `.txt` extension (§6.6).
+## Firmware history
 
-## Format summary
+Definition-relevant changes, from the keyword diff and the changelog:
 
-Three constructs: `KEY VALUE` directives, `[SECTION] … [/SECTION]` blocks, and `#` comments.
-A `#` comment may be a whole line or trail a value.
-Blank lines are permitted anywhere.
-Almost every command is optional, and most values accept `NULL` to leave the track's current state untouched.
+| Version | Change |
+|---|---|
+| 1.10 | Instrument definitions introduced |
+| 1.12 | `MAXRATE`; `[CC_PAIR]`; NRPN LSB above 127 when MSB is 0 or omitted; "syntax compliance is now more strict" |
+| 1.13 | `CC_PAIR:` as an ASSIGN and AUTOMATION type |
+| 1.14 | Tabs no longer break loading |
+| 3.00 | `USBDx`/`USBHx` virtual ports (1–16); "additional special characters" in names; `.txt.bak` files ignored |
+| 3.10 | Drum rows 9–16 |
+| 3.20 | `TYPE POLYAT` and `AFTR`; `DEFAULT=` in `[CC]`, `[NRPN]`, `[CC_PAIR]` honoured (silently ignored in 3.00 and 3.10); MPE type with a DIN `INPORT` checked |
+| 3.21 | No definition changes |
+
+Only three rules differ across the supported range: drum rows 9–16, `POLYAT`/`AFTR`, and section defaults.
+
+Everything else in this spec was probed on 3.10 and is assumed unchanged in 3.20 and 3.21, since the changelog records no other definition changes.
+
+## How the Hapax parses
+
+Observed on 3.10 hardware.
+
+- The first error rejects the whole file. Nothing is partially loaded.
+- Line numbers are 1-based physical lines, comments and blank lines included.
+- `#` starts a comment anywhere on a line; text after it is ignored.
+- Whitespace is spaces or tabs. CRLF line endings load.
+- Keywords are case-insensitive: `trackname`, `TYPE poly`, `[cc]`, `Default=` all load.
+- Every directive and every section is optional, including `VERSION`. A file of only `VERSION 1` and `TRACKNAME x` loads.
+- Numbers may have leading zeros: `026` loads.
+- An unknown section header is accepted, but its first entry is a syntax error.
+- An unclosed section is reported at the next section header.
+
+## Names
+
+TRACKNAME and every entry name use one character set.
+The documented set (alphanumerics, space, `_ - +`) is too strict; 3.00 widened it.
+
+| Accepted | Rejected |
+|---|---|
+| `A–Z a–z 0–9`, space, `_ - + ! " $ ' ( ) * , . / : < = > ? @` | ``% & ; [ \ ] ^ ` { \| } ~``, any non-ASCII |
+
+Probed on CC names and TRACKNAME; applied to PC, NRPN, CC_PAIR and drum lane names on the assumption that one routine handles all names.
+A name is required wherever the syntax shows one: a `[CC]` entry with no name is rejected.
+
+## Rules
+
+Severity follows one principle:
+**an error is something the target firmware rejects; a warning is something it accepts that is probably not what the author meant.**
+Nothing the target firmware accepts is reported as an error.
+
+Rules that depend on the firmware are marked **(fw)**.
 
 ### Directives
 
-| Directive | Valid values |
-|---|---|
-| `VERSION` | `1` |
-| `TRACKNAME` | alphanumeric ASCII plus space, `_`, `-`, `+`; or `NULL` |
-| `TYPE` | `POLY`, `DRUM`, `MPE`, `NULL` |
-| `OUTPORT` | `A`, `B`, `C`, `D`, `USBD`, `USBH`, `CVGx`, `CVx`, `Gx` (x in 1–4), `NULL` |
-| `OUTCHAN` | 1–16, `NULL`; ignored unless the output port is MIDI |
-| `INPORT` | `NONE`, `ALLACTIVE`, `A`, `B`, `USBH`, `USBD`, `CVG`, `NULL` |
-| `INCHAN` | 1–16, `ALL`, `NULL`; ignored when `INPORT` is `NONE`, `ALLACTIVE`, or `CVG` |
+| Directive | Valid | Error | Warning |
+|---|---|---|---|
+| `VERSION` | any | — | not `1` |
+| `TRACKNAME` | name charset, `NULL` | bad character | — |
+| `TYPE` | `POLY DRUM MPE NULL`; `POLYAT AFTR` from 3.20 **(fw)** | anything else | — |
+| `OUTPORT` | `A B C D USBD USBH NULL`, `USBDx USBHx` (1–16), `CVGx CVx Gx` (1–4) | anything else | — |
+| `OUTCHAN` | 1–16, `NULL` | anything else | — |
+| `INPORT` | `NONE ALLACTIVE A B USBD USBH CVG NULL`, `USBDx USBHx` (1–16) | anything else | `A` or `B` when `TYPE` is `MPE` — MPE cannot use a DIN port |
+| `INCHAN` | 1–16, `ALL`, `NULL` | anything else | — |
+| `MAXRATE` | `NULL 192 96 64 48 32 24 16 12 8 6 4 3 2 1` | anything else | — |
+| unknown key | — | always | — |
+| any key twice | — | — | always, naming the earlier line |
 
 ### Sections
 
-`[DRUMLANES]` — `ROW:TRIG:CHAN:NOTENUMBER NAME`, at most 8 entries.
-`ROW` 1–8, `TRIG` 0–127 or `NULL`, `CHAN` 1–16 or `Gx`/`CVx`/`CVGx` (x in 1–4) or `NULL`, `NOTENUMBER` 0–127 or `NULL`, `NAME` in the TRACKNAME charset or `NULL`.
-Discarded by the hardware on non-DRUM tracks.
+**`[DRUMLANES]`** — `ROW:TRIG:CHAN:NOTE NAME`.
+`ROW` 1–16 from 3.10, 1–8 on 3.00 **(fw)**; `TRIG` 0–127 or `NULL`; `CHAN` 1–16, `Gx`/`CVx`/`CVGx` (1–4) or `NULL`; `NOTE` 0–127 or `NULL`; `NAME` or `NULL`.
+Warnings: a row declared twice; any entry when `TYPE` is explicitly `POLY`, `MPE`, `POLYAT` or `AFTR` (the hardware discards the section; `TYPE NULL` keeps the track's current type, which may be DRUM, so it does not warn).
 
-`[PC]` — `NUMBER NAME`, where `NUMBER` is either a single number or `PC:MSB:LSB`.
-`PC` 1–128, `MSB` and `LSB` 0–127 or `NULL`.
+**`[PC]`** — `PC NAME` or `PC:MSB:LSB NAME`.
+`PC` 1–128; `MSB` and `LSB` 0–127 or `NULL`.
+Warnings: the same `PC:MSB:LSB` twice (a bare `PC` is `PC:NULL:NULL`); more than 128 entries — the template states a limit of 128 but 3.10 loads 129.
 
-`[CC]` — `CC_NUMBER NAME` or `CC_NUMBER:DEFAULT=xx NAME`.
-`DEFAULT` 0–127.
+**`[CC]`** — `CC NAME` or `CC:DEFAULT=v NAME`.
+`CC` 0–127; `DEFAULT` a number, `DEFAULT=NULL` is rejected.
+Warnings:
+the same CC twice;
+`CC` above 119 (nameable but not usable in ASSIGN or AUTOMATION, where 120 is rejected);
+`DEFAULT` above 127 (128 loads; its effect is unknown);
+the undocumented shorthand `CC:v NAME` (loads; whether `v` becomes the default is unverified — 8 community files rely on it);
+any `DEFAULT=` before 3.20 **(fw)** — ignored on load; the message says to set it on the `[AUTOMATION]` line instead.
 
-`[NRPN]` — `MSB:LSB:DEPTH NAME`, optionally `MSB:LSB:DEPTH:DEFAULT=xx NAME`.
-`MSB` and `LSB` 0–127, `DEPTH` 7 or 14.
-`DEFAULT` 0–127 for 7-bit, 0–16383 for 14-bit.
+**`[CC_PAIR]`** — `MSB_CC:LSB_CC NAME` or `MSB_CC:LSB_CC:DEFAULT=v NAME`; 14-bit CC.
+Each CC 0–127, `DEFAULT` 0–16383.
+Ranges are from the template and unprobed.
+Warnings: the same pair twice; any `DEFAULT=` before 3.20 **(fw)**.
 
-`[ASSIGN]` — `POT_NUMBER TYPE:VALUE`, optionally followed by `DEFAULT=xx`.
-`POT_NUMBER` 1–8; pots not named are `NULL`.
-`TYPE` is `CC` (value 0–119), `PB`, `AT`, `CV` (value 1–4), `NRPN` (value `MSB:LSB:DEPTH`), or `NULL`.
-Text after `PB` and `AT` is ignored.
-Defaults: `CC` 0–127, `PB` 0–16383, `NRPN` 0–127 or 0–16383 by depth, `CV` either 0–65535 or a voltage from `-5V` to `5V`.
-Defaults are ignored for `PB` and `AT`.
+**`[NRPN]`** — `MSB:LSB:DEPTH NAME` or `MSB:LSB:DEPTH:DEFAULT=v NAME`.
+`MSB` 0–127 or empty; `LSB` 0–127, or 0–16383 when `MSB` is `0` or empty (`1:200:7` is rejected); `DEPTH` 7 or 14; `DEFAULT` 0–127 for 7-bit, 0–16383 for 14-bit.
+Warnings: the same `MSB:LSB` twice; a bare fourth field `MSB:LSB:DEPTH:v` (loads; unverified as a default); any `DEFAULT=` before 3.20 **(fw)**.
 
-`[AUTOMATION]` — `TYPE:VALUE` using the same type and value rules as `[ASSIGN]`, at most 64 entries.
+**`[ASSIGN]`** — `POT TYPE:VALUE [DEFAULT=v]`.
+`POT` 1–8.
+`TYPE`/`VALUE`: `CC:0–119`, `PB`, `AT`, `CV:1–4`, `NRPN:MSB:LSB:DEPTH`, `CC_PAIR:MSB:LSB`, `NULL`.
+`CC_PAIR:` is undocumented in the template; it is in the keyword table since 1.13 and loads.
+`DEFAULT`: CC 0–127, PB 0–16383, NRPN by depth, CV 0–65535 or a voltage from `-5V` to `5V`; ignored for PB and AT.
+Warnings: the same pot twice; an extra `:v` after a CC value (`CC:16:127`) or text between the value and `DEFAULT=` — both load, with unverified effect.
 
-`[COMMENT]` — free text, displayed on the Hapax. Not parsed.
+**`[AUTOMATION]`** — `TYPE:VALUE [DEFAULT=v]`, types and values as `[ASSIGN]` without `NULL`.
+At most 64 entries; the 65th is rejected.
+`DEFAULT=` here is undocumented in the template but honoured on every supported firmware — it is the only default 3.00 and 3.10 apply — so it is valid and not reported.
+
+**`[COMMENT]`** — free text shown on the Hapax. Structure only; contents not validated.
+
+**Unknown section** — an error on its first entry, as the hardware reports it; a warning if it is empty.
+
+**Structure** — an unclosed section is an error; so is a closing tag with no matching open.
 
 ## Architecture
 
 ### Parser — line-oriented and lossless
 
-`hapax/parse.py`, plain dataclasses, no dependencies.
+`hapax/parse.py`, plain dataclasses, no dependencies, firmware-agnostic.
 
 ```python
 @dataclass
 class Directive:
-    key: str
+    key: str        # upper-cased
     value: str
     line: int
 
 @dataclass
 class Entry:
-    raw: str
+    text: str       # comment stripped, whitespace-trimmed
     line: int
 
 @dataclass
 class Section:
-    name: str
+    name: str       # upper-cased
     entries: list[Entry]
     start: int
-    end: int
+    end: int | None # None if never closed
 
 @dataclass
 class DefFile:
@@ -126,22 +202,19 @@ class DefFile:
     sections: list[Section]
 ```
 
-Every entry retains its raw text and line number.
-Nothing is discarded.
-This is what gives findings their line numbers, and it is what the editor will later need to write files back without disturbing comments or layout.
-It is not extra work now — a line-oriented parser is simpler than one building a lossy tree.
-
-The parser reports only structural problems: an unterminated section, a stray `[/SECTION]`, an unknown section name, a malformed directive line.
-Everything else is the rules layer's job.
+Nothing is discarded, which gives findings their line numbers and lets the future editor write files back without disturbing comments or layout.
+The parser reports only structural problems — unclosed section, stray closing tag.
+Everything else belongs to the rules.
 
 ### Rules
 
-`hapax/rules.py` holds the ranges and enumerations as module-level constants, transcribed from the template.
-One function per directive and per section, each returning findings, dispatched through a name-to-function dict.
+`hapax/rules.py`: ranges and enumerations as module-level constants, one function per directive and per section, dispatched by name.
+Entry grammars are regex-shaped, so each rule is a compiled pattern plus range checks on the groups.
+A comment on each constant cites its source: a probe ID, a firmware version, or the template.
 
-The grammar is regex-shaped — `ROW:TRIG:CHAN:NOTE NAME`, `MSB:LSB:DEPTH:DEFAULT=xx NAME` — so each entry rule is a compiled pattern plus range checks on the captured groups.
-No configuration, no data files, no version selection.
-A second firmware becomes a second ruleset module if and when one is actually needed.
+Firmware is a `tuple[int, int]` passed to every rule function.
+The three firmware-dependent rules are plain comparisons against it, such as `fw >= (3, 20)`, next to a comment naming the changelog entry.
+There is no per-version ruleset and no version registry — three comparisons do not need one.
 
 ### Findings
 
@@ -149,43 +222,34 @@ A second firmware becomes a second ruleset module if and when one is actually ne
 @dataclass
 class Finding:
     severity: Severity   # StrEnum: ERROR | WARNING
-    line: int
+    line: int            # 0 for file-level findings
     message: str
 ```
 
-Errors are hard violations of the documented format.
-
-Warnings are legal-but-probably-wrong, a fixed set of five:
-
-1. A CC or PC number declared more than once, naming the earlier line.
-2. A drum lane row declared more than once.
-3. A non-empty `[DRUMLANES]` on a track whose `TYPE` is not `DRUM`, since the hardware discards it.
-4. A `TRACKNAME` containing characters outside the documented charset.
-5. A `[CC]` number above 119, which can be named but cannot be automated or assigned.
-
-`--strict` makes warnings affect the exit code.
+`--strict` makes warnings count toward the exit code.
 
 ### CLI
 
 `hapax/cli.py`, standard library `argparse`.
-The `validate` subcommand exists from the start so that a bare `hapax` can become the TUI later without restructuring.
+The `validate` subcommand exists from the start so a bare `hapax` can become the TUI later.
 
 ```
-$ hapax validate ~/Music/hapax\ inst/*.txt
+$ hapax validate --fw 3.10 ~/Music/hapax\ inst/
 
-Matriarch.txt      OK
-Novation_Peak.txt  1 error, 2 warnings
-  E line 88: CC 128 out of range (0-127)
-  W line 41: CC 74 declared twice (also line 36)
+DD-500.txt         OK
+Matriarch.txt      34 warnings
+  W line 49: DEFAULT ignored on 3.10 (honoured from 3.20); set it on the [AUTOMATION] line instead
+  ...
 TR-8S.txt          OK
 
-14 files, 1 error, 2 warnings
+14 files, 0 errors, 304 warnings — Hapax OS 3.10
 ```
 
-Plain text, no colour.
-Rich arrives for free as a Textual dependency at the TUI stage; adding it now would be a dependency bought for decoration.
+Plain text, no colour — Rich arrives with Textual at the TUI stage.
 
-Exit codes: 0 clean, 1 findings that count, 2 usage or I/O failure.
+- A file that is not valid UTF-8 produces an error finding at line 0; other files are still checked.
+- A path that does not exist, no `.txt` files found at all, or an unsupported `--fw`, exits 2 with a message.
+- Exit codes: 0 clean, 1 findings that count, 2 usage or I/O failure.
 
 ## Layout
 
@@ -199,51 +263,74 @@ hapax/
   rules.py
   cli.py
 tests/
-  test_parse.py
+  test_probes.py
   test_rules.py
-testdata/                   real definitions, the official template, crafted broken files
+  test_corpus.py
+testdata/
+  probes/                   hardware probes and their recorded results (OS 3.10)
+  mine/                     the author's 14 definitions
+  community/                endlesscoil/hapax-instruments, CC0, pinned commit fd4d9df
+  template-online.txt       squarp.net template, reference only
 ```
 
-Flat package rather than `src/`, matching the sibling projects in `claytron/`.
-
-**v1 has no runtime dependencies.**
-`pytest` is the only development dependency.
-Textual is added at the TUI stage, not now.
+Flat package, matching the sibling projects in `claytron/`.
+No runtime dependencies; `pytest` is the only development dependency.
+Firmware binaries are not committed; the keyword diff is recorded in this spec and can be rerun from the published downloads.
 
 ## Testing
 
-Test-driven, table-driven via `pytest.mark.parametrize`.
+Test-driven, `pytest.mark.parametrize` throughout.
 
-The 14 existing definitions in `~/Music/hapax inst/` are the must-pass corpus.
-They are the author's own files, so there is no copyright question in committing them.
-Community definitions from the forum are deliberately not vendored.
+**Probes are the primary suite, run with `fw=(3, 10)`.**
+For every probe file, the validator's first error line must equal the hardware's recorded outcome: the reported line, or no error for "loads".
+This pins the validator to the hardware rather than to anyone's reading of the template.
+The expected outcomes live in `test_probes.py` as a dict, transcribed from the two `RESULTS.md` files.
+Probes the hardware accepted but that should warn assert the warning as well.
 
-Each rule gets a crafted broken file asserting the exact line number and message.
-That is the check that fails when a range is transcribed wrong, which is the most likely defect in this codebase.
+**Firmware tests:** each firmware-dependent rule is asserted on both sides of its threshold — drum row 9 on 3.00 and 3.10, `TYPE POLYAT` on 3.10 and 3.20, a `[CC]` default on 3.10 and 3.20 — plus the default being 3.21.
+
+**Rule tests** cover what probes don't: range boundaries for unprobed sections (`CC_PAIR`, CV voltages, drum channels), asserting exact line and message.
+
+**Corpus tests:**
+the author's 14 files must produce no errors on 3.10;
+the 155 community files must parse without raising, and a handful of known mistakes in them are asserted by line — `OUTAN` in `uptown/flash.txt`, `105:LPF VEL` in `toraiz/as-1.txt`, `DEFAULT=NULL` in `pandamidi/future_impact.txt`.
+
+The community repository is CC0, so vendoring it is permitted.
+Forum posts are not vendored.
 
 ## Decisions worth recording
 
+**The hardware decides severity.**
+The template's prose was wrong in both directions: it documents a character set narrower than what loads, a PC limit that isn't enforced, and — for the author's 3.10 — a `TYPE POLYAT` that is rejected.
+Probing replaced guessing.
+
+**Firmware selection, defaulting to the latest.**
+The original design deferred versioning as speculative.
+The changelog made it concrete: three rules differ between 3.00 and 3.21, and one of them silently discards every section default the author has written on 3.10.
+The default is the latest release, so files written for sharing are checked against what most people run; `--fw 3.10` checks against the author's own hardware.
+3.20 projects do not open on 3.10, so owners may reasonably stay on 3.10 for some time.
+Firmware before 3.00 is unsupported: its name character set is unknown and virtual ports did not exist.
+
 **Python and Textual rather than Go and bubbletea.**
-The original note proposed bubbletea.
-Python was chosen instead for consistency with the surrounding projects and because the format's grammar is regex-shaped, which keeps the rules module short.
-Nothing in the architecture depended on the language; this revision changed tooling and layout only.
+Consistency with the surrounding projects, and the grammar is regex-shaped.
+The architecture did not depend on the language.
 
 **PC is 1–128 in the file, 0–127 on the wire.**
-Manual §5.7 describes PC values as 0–127; the template requires 1–128.
-The file format is one-indexed against MIDI's zero-indexed value.
-The validator follows the file format, with a comment in `rules.py` explaining why, so the apparent off-by-one is not "fixed" later.
+The manual (§5.7) describes PC values as 0–127; the file format is one-indexed, and PC 0 is rejected.
+A comment in `rules.py` records this so it is not "fixed" later.
 
-**`[CC]` numbers are validated as 0–127, warned above 119.**
-Neither the manual nor the template states a range for the CC naming section.
-Assign and automation destinations stop at 119, but naming is cosmetic, so a higher number is suspicious rather than invalid.
-Flip it to an error if the hardware turns out to reject those files.
+**Warnings for accepted-but-unverified syntax.**
+Shorthand defaults, bare NRPN fourth fields and extra ASSIGN fields all load, but nothing confirms the Hapax does what the author intended with them.
+They warn rather than pass silently, because a silently dropped default is exactly the bug this tool exists to catch — as 3.10's own section defaults demonstrate.
 
-**No firmware versioning.**
-The note that started this project wanted validation against a chosen OS version.
-Deferred until a rule is actually observed to differ between firmwares.
-The ruleset is small and self-contained, so introducing a second one later is a contained change.
+## Open questions
+
+- Name length limit: unprobed; long names may be truncated or rejected. The 1.15 changelog mentions long file names preventing loading, so file-name length may matter too.
+- `[COMMENT]` character set: unprobed; the validator does not check it.
+- Whether shorthand and bare-fourth-field defaults apply on 3.20, where section defaults finally work: needs 3.20 hardware.
+- Behaviour on 3.20 and 3.21 is inferred from the changelog, not probed.
 
 ## Later
 
-A Textual TUI over the same `hapax.parse` and `hapax.rules` modules: browse definitions with validation status, view detail, then edit fields, CC entries, and drum lane rows in place, writing back through the lossless parser.
+A Textual TUI over the same `hapax.parse` and `hapax.rules`: browse definitions with validation status, view detail, then edit in place, writing back through the lossless parser.
 Each stage gets its own design.

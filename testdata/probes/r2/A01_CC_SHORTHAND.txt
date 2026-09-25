@@ -1,0 +1,7 @@
+# PROBE A01
+VERSION 1
+TRACKNAME A01
+# CC shorthand default N:N (8 community files)
+[CC]
+24:100 x
+[/CC]

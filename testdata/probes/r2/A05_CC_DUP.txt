@@ -1,0 +1,8 @@
+# PROBE A05
+VERSION 1
+TRACKNAME A05
+# duplicate CC number
+[CC]
+31 a
+31 b
+[/CC]

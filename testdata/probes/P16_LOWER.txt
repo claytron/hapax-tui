@@ -1,0 +1,30 @@
+# PROBE: lowercase directive keyword
+VERSION 1
+trackname P16 LOWER
+TYPE NULL
+OUTPORT NULL
+OUTCHAN NULL
+INPORT NULL
+INCHAN NULL
+
+[DRUMLANES]
+[/DRUMLANES]
+
+[PC]
+[/PC]
+
+[CC]
+74 K01 loaded
+[/CC]
+
+[NRPN]
+[/NRPN]
+
+[ASSIGN]
+[/ASSIGN]
+
+[AUTOMATION]
+[/AUTOMATION]
+
+[COMMENT]
+[/COMMENT]
