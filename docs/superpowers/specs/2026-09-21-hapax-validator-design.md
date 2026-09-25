@@ -1,6 +1,7 @@
 # Hapax Instrument Definition Validator — Design
 
 Date: 2026-09-21
+Revised: 2026-09-25 — Python and Textual replace Go and bubbletea
 Status: approved, ready for implementation planning
 
 ## Context
@@ -11,7 +12,7 @@ They name CCs and PCs, configure drum lanes, set input and output MIDI port and 
 Editing them by hand is error-prone and the hardware gives poor feedback when a file is malformed.
 Existing third-party checkers are web-based and mostly out of date.
 
-This is the first stage of a larger tool that will eventually grow a bubbletea TUI for browsing and editing definitions.
+This is the first stage of a larger tool that will eventually grow a [Textual](https://github.com/Textualize/textual) TUI for browsing and editing definitions.
 That stage is explicitly not part of this design.
 
 ## Scope
@@ -19,7 +20,7 @@ That stage is explicitly not part of this design.
 A single command that validates definition files and reports problems with line numbers.
 
 ```
-hapax validate [-strict] [files...]
+hapax validate [--strict] [files...]
 ```
 
 With no file arguments it validates `*.txt` in the current directory.
@@ -38,7 +39,7 @@ The Hapax manual (§6.6) documents what definitions do but defers syntax to the 
 
 The official example template therefore **is** the specification.
 Every section carries its grammar, ranges, and allowed values as `#` comments.
-Those comments are transcribed into `rules.go`, and the template is kept in `testdata/` as the reference copy.
+Those comments are transcribed into `rules.py`, and the template is kept in `testdata/` as the reference copy.
 
 Three facts come from the manual rather than the template:
 
@@ -96,12 +97,33 @@ Defaults are ignored for `PB` and `AT`.
 
 ### Parser — line-oriented and lossless
 
-```go
-type File struct {
-    Lines      []string    // raw, verbatim
-    Directives []Directive // Key, Value, Line
-    Sections   []Section   // Name, Entries, Start, End
-}
+`hapax/parse.py`, plain dataclasses, no dependencies.
+
+```python
+@dataclass
+class Directive:
+    key: str
+    value: str
+    line: int
+
+@dataclass
+class Entry:
+    raw: str
+    line: int
+
+@dataclass
+class Section:
+    name: str
+    entries: list[Entry]
+    start: int
+    end: int
+
+@dataclass
+class DefFile:
+    path: Path
+    lines: list[str]        # raw, verbatim
+    directives: list[Directive]
+    sections: list[Section]
 ```
 
 Every entry retains its raw text and line number.
@@ -114,13 +136,23 @@ Everything else is the rules layer's job.
 
 ### Rules
 
-`rules.go` holds the ranges and enumerations as plain Go values, transcribed from the template.
-One function per section and per directive, each appending findings.
-No configuration, no data files, no version selection — a second firmware becomes a second ruleset if and when one is actually needed.
+`hapax/rules.py` holds the ranges and enumerations as module-level constants, transcribed from the template.
+One function per directive and per section, each returning findings, dispatched through a name-to-function dict.
+
+The grammar is regex-shaped — `ROW:TRIG:CHAN:NOTE NAME`, `MSB:LSB:DEPTH:DEFAULT=xx NAME` — so each entry rule is a compiled pattern plus range checks on the captured groups.
+No configuration, no data files, no version selection.
+A second firmware becomes a second ruleset module if and when one is actually needed.
 
 ### Findings
 
-A finding carries severity, line number, and message.
+```python
+@dataclass
+class Finding:
+    severity: Severity   # StrEnum: ERROR | WARNING
+    line: int
+    message: str
+```
+
 Errors are hard violations of the documented format.
 
 Warnings are legal-but-probably-wrong, a fixed set of five:
@@ -131,9 +163,12 @@ Warnings are legal-but-probably-wrong, a fixed set of five:
 4. A `TRACKNAME` containing characters outside the documented charset.
 5. A `[CC]` number above 119, which can be named but cannot be automated or assigned.
 
-`-strict` makes warnings affect the exit code.
+`--strict` makes warnings affect the exit code.
 
-### Output
+### CLI
+
+`hapax/cli.py`, standard library `argparse`.
+The `validate` subcommand exists from the start so that a bare `hapax` can become the TUI later without restructuring.
 
 ```
 $ hapax validate ~/Music/hapax\ inst/*.txt
@@ -147,26 +182,37 @@ TR-8S.txt          OK
 14 files, 1 error, 2 warnings
 ```
 
+Plain text, no colour.
+Rich arrives for free as a Textual dependency at the TUI stage; adding it now would be a dependency bought for decoration.
+
 Exit codes: 0 clean, 1 findings that count, 2 usage or I/O failure.
 
 ## Layout
 
 ```
-go.mod                      module github.com/claytron/hapax
-main.go                     flags, dispatch, output formatting
-internal/def/parse.go
-internal/def/rules.go
-internal/def/def_test.go
+pyproject.toml              uv; [project.scripts] hapax = "hapax.cli:main"
+.python-version             3.13
+uv.lock
+hapax/
+  __init__.py
+  parse.py
+  rules.py
+  cli.py
+tests/
+  test_parse.py
+  test_rules.py
 testdata/                   real definitions, the official template, crafted broken files
 ```
 
-Standard library `flag`; no CLI framework for one subcommand.
-The `validate` subcommand exists from the start so that a bare `hapax` can become the TUI later without restructuring.
-`internal/def` is importable by that TUI unchanged.
+Flat package rather than `src/`, matching the sibling projects in `claytron/`.
+
+**v1 has no runtime dependencies.**
+`pytest` is the only development dependency.
+Textual is added at the TUI stage, not now.
 
 ## Testing
 
-Test-driven, table-driven.
+Test-driven, table-driven via `pytest.mark.parametrize`.
 
 The 14 existing definitions in `~/Music/hapax inst/` are the must-pass corpus.
 They are the author's own files, so there is no copyright question in committing them.
@@ -177,10 +223,15 @@ That is the check that fails when a range is transcribed wrong, which is the mos
 
 ## Decisions worth recording
 
+**Python and Textual rather than Go and bubbletea.**
+The original note proposed bubbletea.
+Python was chosen instead for consistency with the surrounding projects and because the format's grammar is regex-shaped, which keeps the rules module short.
+Nothing in the architecture depended on the language; this revision changed tooling and layout only.
+
 **PC is 1–128 in the file, 0–127 on the wire.**
 Manual §5.7 describes PC values as 0–127; the template requires 1–128.
 The file format is one-indexed against MIDI's zero-indexed value.
-The validator follows the file format, with a comment in `rules.go` explaining why, so the apparent off-by-one is not "fixed" later.
+The validator follows the file format, with a comment in `rules.py` explaining why, so the apparent off-by-one is not "fixed" later.
 
 **`[CC]` numbers are validated as 0–127, warned above 119.**
 Neither the manual nor the template states a range for the CC naming section.
@@ -194,5 +245,5 @@ The ruleset is small and self-contained, so introducing a second one later is a 
 
 ## Later
 
-A bubbletea TUI over the same `internal/def` package: browse definitions with validation status, view detail, then edit fields, CC entries, and drum lane rows in place, writing back through the lossless parser.
+A Textual TUI over the same `hapax.parse` and `hapax.rules` modules: browse definitions with validation status, view detail, then edit fields, CC entries, and drum lane rows in place, writing back through the lossless parser.
 Each stage gets its own design.
