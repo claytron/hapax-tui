@@ -22,7 +22,7 @@ The 3.10 column is the recorded result, for comparison; only differences matter.
 | r3/E01_CC_SECTION_DEFAULT | see part 1 | loads; lane `E01 CUTOFF` DEFAULT 100 — section default honoured |
 | r3/E02_AUTO_LINE_DEFAULT | see part 1 | loads; lane `E02 CUTOFF` DEFAULT 100 — control as expected |
 | r3/E03_CC_SHORTHAND_DEFAULT | see part 1 | loads; lane `E03 CUTOFF` DEFAULT 100 — shorthand is a default |
-| r3/E04_NRPN_BARE_DEFAULT | — | lane value: 64k |
+| r3/E04_NRPN_BARE_DEFAULT | — | lane value: 64 |
 | r3/E05_ASSIGN_EXTRA_FIELD | — | pot 1 default: 0 / pot 2 default: 100 |
 | P05_DRUM16 | ok | SYNTAX ERROR line 11 |
 | r2/A01_CC_SHORTHAND | ok | |
@@ -84,5 +84,5 @@ The `74:100` shorthand (E03) behaves exactly like `74:DEFAULT=100`: an undocumen
 Round 3 on 2.21, differences from 3.10 only:
 P05 row 16 rejected (rows 9–16 arrived in 3.10); B03 `USBD1` rejected (virtual ports arrived in 3.00); A07 `DEFAULT=128` rejected (3.00–3.10 stopped checking section defaults along with applying them).
 All 23 name-character results match 3.10.
-E04: the NRPN bare fourth field set the lane default (screen showed "64k") — it is a shorthand, like E03.
+E04: the NRPN bare fourth field set the lane default to 64 — it is a shorthand, like E03.
 E05: `1 CC:74:100` left pot 1 at default 0; the control `2 CC:71 DEFAULT=100` gave 100 — the extra field is silently dropped.
