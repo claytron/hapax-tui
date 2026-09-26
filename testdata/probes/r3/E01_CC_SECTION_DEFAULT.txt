@@ -1,0 +1,10 @@
+# PROBE E01: [CC] section default - does the lane start at 100?
+VERSION 1
+TRACKNAME E01
+TYPE POLY
+[CC]
+74:DEFAULT=100 E01 cutoff
+[/CC]
+[AUTOMATION]
+CC:74
+[/AUTOMATION]

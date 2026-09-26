@@ -66,7 +66,7 @@ Definition-relevant changes, from the keyword diff and the changelog:
 | 1.12 | `MAXRATE`; `[CC_PAIR]`; NRPN LSB above 127 when MSB is 0 or omitted; "syntax compliance is now more strict" |
 | 1.13 | `CC_PAIR:` as an ASSIGN and AUTOMATION type |
 | 1.14 | Tabs no longer break loading |
-| 3.00 | `USBDx`/`USBHx` virtual ports (1–16); "additional special characters" in names; `.txt.bak` files ignored |
+| 3.00 | `USBDx`/`USBHx` virtual ports (1–16); "additional special characters" in names; `.txt.bak` files ignored; `DEFAULT=` in `[CC]`, `[NRPN]`, `[CC_PAIR]` stops being applied (it works on 2.21 — probe E01) |
 | 3.10 | Drum rows 9–16 |
 | 3.20 | `TYPE POLYAT` and `AFTR`; `DEFAULT=` in `[CC]`, `[NRPN]`, `[CC_PAIR]` honoured (silently ignored in 3.00 and 3.10); MPE type with a DIN `INPORT` checked |
 | 3.21 | No definition changes |

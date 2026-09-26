@@ -1,0 +1,10 @@
+# PROBE E03: CC shorthand default 74:100 - does the lane start at 100?
+VERSION 1
+TRACKNAME E03
+TYPE POLY
+[CC]
+74:100 E03 cutoff
+[/CC]
+[AUTOMATION]
+CC:74
+[/AUTOMATION]

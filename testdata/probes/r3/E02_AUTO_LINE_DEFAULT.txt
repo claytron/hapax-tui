@@ -1,0 +1,10 @@
+# PROBE E02: control - default on the automation line itself
+VERSION 1
+TRACKNAME E02
+TYPE POLY
+[CC]
+74 E02 cutoff
+[/CC]
+[AUTOMATION]
+CC:74 DEFAULT=100
+[/AUTOMATION]
