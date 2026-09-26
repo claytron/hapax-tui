@@ -230,8 +230,8 @@ def parse(text: str) -> Document:
     reported: set[int] = set()  # start lines of unknown sections already reported
 
     for n, raw in enumerate(doc.lines, 1):
-        body = raw.split("#", 1)[0].rstrip()
-        if not body.strip():
+        body = raw.split("#", 1)[0].rstrip(" \t\r")  # only what _WS matches; other whitespace is a name character error
+        if not body.strip(" \t"):
             continue
 
         if m := _HEADER.match(body):

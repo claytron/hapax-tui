@@ -239,3 +239,13 @@ def test_tabs_break_loading_before_1_14(fw, expected):
 def test_every_mistake_is_reported_not_just_the_first():
     text = "OUTCHAN 17\n[CC]\n128 a\n74 b&c\n[/CC]\n[ASSIGN]\n9 CC:1\n[/ASSIGN]\n"
     assert codes(text) == [("outchan.value", 1), ("cc.range", 3), ("name.char", 4), ("assign.range", 7)]
+
+
+@pytest.mark.parametrize("text, span", [
+    ("TRACKNAME Foo ", Span(13, 14)),
+    ("[CC]\n74 Cutoff \n[/CC]", Span(9, 10)),
+    ("[CC]\n74 Cutoff　\n[/CC]", Span(9, 10)),
+])
+def test_trailing_unicode_whitespace_is_part_of_the_name(text, span):
+    [f] = findings(text)
+    assert (f.code, f.span) == ("name.char", span)
