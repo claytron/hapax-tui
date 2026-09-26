@@ -1,0 +1,63 @@
+// Hapax instrument definition, one start rule per line kind.
+// Lines arrive with the comment and trailing whitespace removed, leading whitespace kept.
+// Shapes only: ranges, enumerations, name characters and firmware rules live in the rules.
+
+// VERSION 1, TRACKNAME My Synth, TYPE POLY ... - the value is checked by the rules
+directive: _WS? KEY (_WS VALUE)?
+
+// 74 Cutoff | 74:DEFAULT=64 Cutoff | 74:64 Cutoff (shorthand, probe E03)
+cc_entry: _WS? INT (_COLON default)? _WS NAME
+
+// 1 Lead | 123:34:NULL Harmonica
+pc_entry: _WS? INT (_COLON int_or_null _COLON int_or_null)? _WS NAME
+
+// 1:33 Mod | 7:39:DEFAULT=8192 Vol
+ccpair_entry: _WS? INT _COLON INT (_COLON DEFAULT INT)? _WS NAME
+
+// 0:1:7 Foo | :2000:7 Bar | 0:2:7:DEFAULT=64 Baz | 0:3:7:64 Qux (shorthand, probe E04)
+nrpn_entry: _WS? msb _COLON INT _COLON INT (_COLON default)? _WS NAME
+msb: INT?
+
+// ROW:TRIG:CHAN:NOTE NAME
+drum_entry: _WS? INT _COLON int_or_null _COLON drum_chan _COLON int_or_null _WS NAME
+drum_chan: INT | NULL | CVPORT
+
+// POT TYPE:VALUE [text] [DEFAULT=v]
+assign_entry: _WS? INT _WS target _tail
+
+// TYPE:VALUE [text] [DEFAULT=v]
+automation_entry: _WS? target _tail
+
+// Text between the value and DEFAULT= loads (probe P06 pot 4); its effect is unverified.
+_tail: (_WS JUNK)* (_WS DEFAULT DEFVAL)?
+
+target: CC INT (_COLON INT)?           -> cc_target      // extra :v is dropped by the Hapax (probe E05)
+      | NRPN msb _COLON INT _COLON INT -> nrpn_target
+      | CC_PAIR INT _COLON INT         -> cc_pair_target
+      | CV INT                         -> cv_target
+      | PB PB_TAIL?                    -> pb_target      // "any value after the TYPE will be ignored"
+      | AT PB_TAIL?                    -> at_target
+      | NULL                           -> null_target
+
+default: DEFAULT? INT
+int_or_null: INT | NULL
+
+CC: "CC:"i
+NRPN: "NRPN:"i
+CC_PAIR: "CC_PAIR:"i
+CV: "CV:"i
+PB: "PB"i
+AT: "AT"i
+PB_TAIL: /:\S*/
+NULL: "NULL"i
+DEFAULT.2: "DEFAULT="i
+DEFVAL: /-?[0-9]+(\.[0-9]+)?V?/i
+CVPORT: /(CVG|CV|G)[0-9]+/i
+
+KEY: /[A-Za-z_]+/
+VALUE: /\S.*/
+NAME: /\S.*/
+JUNK: /\S+/
+INT: /[0-9]+/
+_COLON: ":"
+_WS: /[ \t]+/

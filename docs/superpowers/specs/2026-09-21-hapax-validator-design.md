@@ -366,6 +366,12 @@ Test-driven, `pytest.mark.parametrize` throughout.
 Write the grammar and run it over the author's 14 files, the 155 community files and every probe file, checking two things: names with spaces and punctuation split cleanly from the fields before them, and the grammar accepts and rejects exactly what the hardware did.
 If it does not hold up, fall back to a hand-written line parser behind the same `parse()`.
 
+Done 2026-09-26; Lark holds, details in `spike/RESULTS.md`.
+No probe the hardware loaded is rejected, and every rejection the grammar owns lands on the hardware's line.
+All 12,232 corpus names split cleanly; the 36 community lines it rejects are genuine mistakes.
+Cold parse of `Novation_Peak.txt` takes 3.9 ms.
+`spike/grammar.lark` is the starting point for `hapax/grammar.lark`.
+
 **Probes are the primary suite, run with `fw=(3, 10)`.**
 For every probe file, the validator's first error line must equal the hardware's recorded outcome: the reported line, or no error for "loads".
 This pins the validator to the hardware rather than to anyone's reading of the template.
@@ -430,6 +436,8 @@ A silently dropped default is exactly the bug this tool exists to catch — as 3
 - Name length limit: unprobed; long names may be truncated or rejected.
   The 1.15 changelog mentions long file names preventing loading, so file-name length may matter too.
 - `[COMMENT]` character set: unprobed; the validator does not check it.
+- A section left open at end of file: unprobed; treated as unclosed (two community files end in an open `[COMMENT]`).
+- A PC or drum entry with no name: assumed rejected like a `[CC]` entry (A06); unprobed.
 - Behaviour on 3.20 and 3.21, and on 1.12–2.20, is inferred from the changelog, not probed.
 
 ## Later
