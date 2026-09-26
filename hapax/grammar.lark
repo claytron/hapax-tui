@@ -1,0 +1,71 @@
+// Hapax instrument definition, one start rule per line kind.
+// Each line arrives without its comment and trailing whitespace; leading whitespace is kept,
+// so token columns are screen columns.
+// Shapes only: ranges, enumerations, name characters and firmware rules live in rules.py.
+
+directive: _WS? key [_WS value]
+
+// 74:64 X is shorthand for 74:DEFAULT=64 X (probe E03)
+cc_entry: _WS? cc [_COLON default] _WS name
+pc_entry: _WS? pc [_COLON pc_msb _COLON pc_lsb] _WS name
+ccpair_entry: _WS? msb _COLON lsb [_COLON pair_default] _WS name
+// A bare fourth field is a default (probe E04)
+nrpn_entry: _WS? nrpn_msb _COLON lsb _COLON depth [_COLON default] _WS name
+drum_entry: _WS? row _COLON trig _COLON chan _COLON note _WS name
+assign_entry: _WS? pot _WS _target _tail
+automation_entry: _WS? _target _tail
+
+// CC:74:100 loads but the :100 is dropped (probe E05)
+// PB and AT: "any value after the TYPE will be ignored" (template)
+_target: TYPE_CC cc [_COLON extra]
+       | TYPE_NRPN nrpn_msb _COLON lsb _COLON depth
+       | TYPE_CC_PAIR msb _COLON lsb
+       | TYPE_CV cv
+       | TYPE_PB [PB_TAIL]
+       | TYPE_AT [PB_TAIL]
+       | NULL
+
+// Text between the value and DEFAULT= loads (probe P06 pot 4)
+_tail: (_WS junk)* [_WS line_default]
+
+key: KEY
+value: VALUE
+name: NAME
+cc: INT
+pc: INT
+pc_msb: INT | NULL
+pc_lsb: INT | NULL
+msb: INT
+lsb: INT
+nrpn_msb: INT?
+depth: INT
+default: DEFAULT? INT
+pair_default: DEFAULT INT
+row: INT
+trig: INT | NULL
+chan: INT | NULL | CVPORT
+note: INT | NULL
+pot: INT
+extra: INT
+cv: INT
+junk: JUNK
+line_default: DEFAULT DEFVAL
+
+TYPE_CC: "CC:"i
+TYPE_NRPN: "NRPN:"i
+TYPE_CC_PAIR: "CC_PAIR:"i
+TYPE_CV: "CV:"i
+TYPE_PB: "PB"i
+TYPE_AT: "AT"i
+PB_TAIL: /:\S*/
+NULL: "NULL"i
+DEFAULT.2: "DEFAULT="i
+DEFVAL: /-?[0-9]+(\.[0-9]+)?V?/i
+CVPORT: /(CVG|CV|G)[0-9]+/i
+KEY: /[A-Za-z_]+/
+VALUE: /\S.*/
+NAME: /\S.*/
+JUNK: /\S+/
+INT: /[0-9]+/
+_COLON: ":"
+_WS: /[ \t]+/
