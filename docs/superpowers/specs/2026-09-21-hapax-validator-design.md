@@ -27,15 +27,15 @@ Each path is a file or a directory; a directory expands to the `*.txt` files dir
 With no paths it validates the current directory.
 Dotfiles are always skipped: macOS writes a binary `._Name.txt` next to every file it copies to the SD card.
 
-`--fw` selects the target firmware: `3.00`, `3.10`, `3.20` or `3.21`; the default is the latest, `3.21`.
-Older firmware is refused with exit code 2.
+`--fw` selects the target firmware: any published release from `1.12` to `3.21`; the default is the latest, `3.21`.
+Older or unknown versions are refused with exit code 2.
 The summary line always names the firmware checked against, so the default is never invisible.
 
 ### Non-goals for v1
 
 - No TUI.
 - No editing or writing of files.
-- No firmware older than 3.00.
+- No firmware older than 1.12, whose parser was "less strict" in undocumented ways.
 - No fetching definitions from the community forum or third-party repositories.
 
 ## Sources of truth
@@ -65,24 +65,34 @@ Definition-relevant changes, from the keyword diff and the changelog:
 | 1.10 | Instrument definitions introduced |
 | 1.12 | `MAXRATE`; `[CC_PAIR]`; NRPN LSB above 127 when MSB is 0 or omitted; "syntax compliance is now more strict" |
 | 1.13 | `CC_PAIR:` as an ASSIGN and AUTOMATION type |
-| 1.14 | Tabs no longer break loading |
-| 3.00 | `USBDx`/`USBHx` virtual ports (1–16); "additional special characters" in names; `.txt.bak` files ignored; `DEFAULT=` in `[CC]`, `[NRPN]`, `[CC_PAIR]` stops being applied (it works on 2.21 — probe E01) |
+| 1.14 | Tabs no longer break loading; `[CC_PAIR]` defaults loaded |
+| 3.00 | `USBDx`/`USBHx` virtual ports (1–16); `.txt.bak` files ignored; `DEFAULT=` in `[CC]`, `[NRPN]`, `[CC_PAIR]` stops being applied **and range-checked** (2.21 applies it, probe E01, and rejects `DEFAULT=128`, probe A07). The changelog's "additional special characters" did not touch definition names: 2.21 accepts exactly the 3.10 set |
 | 3.10 | Drum rows 9–16 |
 | 3.20 | `TYPE POLYAT` and `AFTR`; `DEFAULT=` in `[CC]`, `[NRPN]`, `[CC_PAIR]` honoured (silently ignored in 3.00 and 3.10); MPE type with a DIN `INPORT` checked |
 | 3.21 | No definition changes |
 
-Only three rules differ across the supported range: drum rows 9–16, `POLYAT`/`AFTR`, and section defaults.
+Firmware-dependent rules across the supported range, 1.12–3.21:
 
-Everything else in this spec was probed on 3.10 and is assumed unchanged in 3.20 and 3.21, since the changelog records no other definition changes.
+| Rule | Condition |
+|---|---|
+| Tab anywhere in the file is an error | before 1.14 |
+| `CC_PAIR:` in ASSIGN or AUTOMATION is an error | before 1.13 |
+| `[CC_PAIR]` `DEFAULT=` is ignored (warning) | before 1.14 |
+| `USBDx`/`USBHx` are errors | before 3.00 |
+| Section defaults are ignored and unchecked (warning; no range error) | 3.00–3.10 |
+| Drum rows 9–16 are errors | before 3.10 |
+| `TYPE POLYAT`/`AFTR` are errors | before 3.20 |
+
+Everything else in this spec was probed on 3.10 and 2.21 with identical results, and is assumed unchanged from 1.12 to 3.21, since the changelog records no other definition changes in that range.
 
 ## How the Hapax parses
 
-Observed on 3.10 hardware.
+Observed on 3.10 and 2.21 hardware.
 
 - The first error rejects the whole file. Nothing is partially loaded.
 - Line numbers are 1-based physical lines, comments and blank lines included.
 - `#` starts a comment anywhere on a line; text after it is ignored.
-- Whitespace is spaces or tabs. CRLF line endings load.
+- Whitespace is spaces or tabs (tabs from 1.14). CRLF line endings load.
 - Keywords are case-insensitive: `trackname`, `TYPE poly`, `[cc]`, `Default=` all load.
 - Every directive and every section is optional, including `VERSION`. A file of only `VERSION 1` and `TRACKNAME x` loads.
 - Numbers may have leading zeros: `026` loads.
@@ -92,7 +102,7 @@ Observed on 3.10 hardware.
 ## Names
 
 TRACKNAME and every entry name use one character set.
-The documented set (alphanumerics, space, `_ - +`) is too strict; 3.00 widened it.
+The documented set (alphanumerics, space, `_ - +`) is too strict. The set below is identical on 2.21 and 3.10.
 
 | Accepted | Rejected |
 |---|---|
@@ -116,9 +126,9 @@ Rules that depend on the firmware are marked **(fw)**.
 | `VERSION` | any | — | not `1` |
 | `TRACKNAME` | name charset, `NULL` | bad character | — |
 | `TYPE` | `POLY DRUM MPE NULL`; `POLYAT AFTR` from 3.20 **(fw)** | anything else | — |
-| `OUTPORT` | `A B C D USBD USBH NULL`, `USBDx USBHx` (1–16), `CVGx CVx Gx` (1–4) | anything else | — |
+| `OUTPORT` | `A B C D USBD USBH NULL`, `USBDx USBHx` (1–16) from 3.00 **(fw)**, `CVGx CVx Gx` (1–4) | anything else | — |
 | `OUTCHAN` | 1–16, `NULL` | anything else | — |
-| `INPORT` | `NONE ALLACTIVE A B USBD USBH CVG NULL`, `USBDx USBHx` (1–16) | anything else | `A` or `B` when `TYPE` is `MPE` — MPE cannot use a DIN port |
+| `INPORT` | `NONE ALLACTIVE A B USBD USBH CVG NULL`, `USBDx USBHx` (1–16) from 3.00 **(fw)** | anything else | `A` or `B` when `TYPE` is `MPE` — MPE cannot use a DIN port |
 | `INCHAN` | 1–16, `ALL`, `NULL` | anything else | — |
 | `MAXRATE` | `NULL 192 96 64 48 32 24 16 12 8 6 4 3 2 1` | anything else | — |
 | unknown key | — | always | — |
@@ -127,7 +137,7 @@ Rules that depend on the firmware are marked **(fw)**.
 ### Sections
 
 **`[DRUMLANES]`** — `ROW:TRIG:CHAN:NOTE NAME`.
-`ROW` 1–16 from 3.10, 1–8 on 3.00 **(fw)**; `TRIG` 0–127 or `NULL`; `CHAN` 1–16, `Gx`/`CVx`/`CVGx` (1–4) or `NULL`; `NOTE` 0–127 or `NULL`; `NAME` or `NULL`.
+`ROW` 1–16 from 3.10, 1–8 before **(fw)**; `TRIG` 0–127 or `NULL`; `CHAN` 1–16, `Gx`/`CVx`/`CVGx` (1–4) or `NULL`; `NOTE` 0–127 or `NULL`; `NAME` or `NULL`.
 Warnings: a row declared twice; any entry when `TYPE` is explicitly `POLY`, `MPE`, `POLYAT` or `AFTR` (the hardware discards the section; `TYPE NULL` keeps the track's current type, which may be DRUM, so it does not warn).
 
 **`[PC]`** — `PC NAME` or `PC:MSB:LSB NAME`.
@@ -135,33 +145,33 @@ Warnings: a row declared twice; any entry when `TYPE` is explicitly `POLY`, `MPE
 Warnings: the same `PC:MSB:LSB` twice (a bare `PC` is `PC:NULL:NULL`); more than 128 entries — the template states a limit of 128 but 3.10 loads 129.
 
 **`[CC]`** — `CC NAME` or `CC:DEFAULT=v NAME`.
-`CC` 0–127; `DEFAULT` a number, `DEFAULT=NULL` is rejected.
+`CC` 0–127; `DEFAULT` 0–127, `DEFAULT=NULL` is rejected; out of range is an error except on 3.00–3.10, which neither check nor apply section defaults **(fw)**.
+`CC:v NAME` is an undocumented shorthand for `CC:DEFAULT=v NAME` — it sets the lane default on 2.21 (probe E03) — and is treated identically.
 Warnings:
 the same CC twice;
 `CC` above 119 (nameable but not usable in ASSIGN or AUTOMATION, where 120 is rejected);
-`DEFAULT` above 127 (128 loads; its effect is unknown);
-the undocumented shorthand `CC:v NAME` (loads; whether `v` becomes the default is unverified — 8 community files rely on it);
-any `DEFAULT=` before 3.20 **(fw)** — ignored on load; the message says to set it on the `[AUTOMATION]` line instead.
+any default, `DEFAULT=v` or shorthand, on 3.00–3.10 **(fw)** — ignored on load; the message says to set it on the `[AUTOMATION]` line instead.
 
 **`[CC_PAIR]`** — `MSB_CC:LSB_CC NAME` or `MSB_CC:LSB_CC:DEFAULT=v NAME`; 14-bit CC.
 Each CC 0–127, `DEFAULT` 0–16383.
 Ranges are from the template and unprobed.
-Warnings: the same pair twice; any `DEFAULT=` before 3.20 **(fw)**.
+Warnings: the same pair twice; any `DEFAULT=` before 1.14 or on 3.00–3.10 **(fw)**.
 
 **`[NRPN]`** — `MSB:LSB:DEPTH NAME` or `MSB:LSB:DEPTH:DEFAULT=v NAME`.
 `MSB` 0–127 or empty; `LSB` 0–127, or 0–16383 when `MSB` is `0` or empty (`1:200:7` is rejected); `DEPTH` 7 or 14; `DEFAULT` 0–127 for 7-bit, 0–16383 for 14-bit.
-Warnings: the same `MSB:LSB` twice; a bare fourth field `MSB:LSB:DEPTH:v` (loads; unverified as a default); any `DEFAULT=` before 3.20 **(fw)**.
+`MSB:LSB:DEPTH:v` is an undocumented shorthand for `MSB:LSB:DEPTH:DEFAULT=v` (probe E04 on 2.21) and is treated identically.
+Warnings: the same `MSB:LSB` twice; any default on 3.00–3.10 **(fw)**.
 
 **`[ASSIGN]`** — `POT TYPE:VALUE [DEFAULT=v]`.
 `POT` 1–8.
 `TYPE`/`VALUE`: `CC:0–119`, `PB`, `AT`, `CV:1–4`, `NRPN:MSB:LSB:DEPTH`, `CC_PAIR:MSB:LSB`, `NULL`.
-`CC_PAIR:` is undocumented in the template; it is in the keyword table since 1.13 and loads.
+`CC_PAIR:` is undocumented in the template; it is in the keyword table from 1.13 **(fw)** and loads.
 `DEFAULT`: CC 0–127, PB 0–16383, NRPN by depth, CV 0–65535 or a voltage from `-5V` to `5V`; ignored for PB and AT.
-Warnings: the same pot twice; an extra `:v` after a CC value (`CC:16:127`) or text between the value and `DEFAULT=` — both load, with unverified effect.
+Warnings: the same pot twice; an extra `:v` after a CC value (`CC:74:100`) — it loads but is silently dropped, the pot default stays 0 (probe E05), so the message says to write `DEFAULT=100`; text between the value and `DEFAULT=` — loads, with unverified effect.
 
 **`[AUTOMATION]`** — `TYPE:VALUE [DEFAULT=v]`, types and values as `[ASSIGN]` without `NULL`.
 At most 64 entries; the 65th is rejected.
-`DEFAULT=` here is undocumented in the template but honoured on every supported firmware — it is the only default 3.00 and 3.10 apply — so it is valid and not reported.
+`DEFAULT=` here is undocumented in the template but honoured on every firmware probed (2.21, and per the changelog 3.00–3.21) — it is the only default 3.00 and 3.10 apply — so it is valid and not reported.
 
 **`[COMMENT]`** — free text shown on the Hapax. Structure only; contents not validated.
 
@@ -213,7 +223,7 @@ Entry grammars are regex-shaped, so each rule is a compiled pattern plus range c
 A comment on each constant cites its source: a probe ID, a firmware version, or the template.
 
 Firmware is a `tuple[int, int]` passed to every rule function.
-The three firmware-dependent rules are plain comparisons against it, such as `fw >= (3, 20)`, next to a comment naming the changelog entry.
+The firmware-dependent rules are plain comparisons against it, such as `fw >= (3, 20)`, next to a comment naming the changelog entry.
 There is no per-version ruleset and no version registry — three comparisons do not need one.
 
 ### Findings
@@ -284,10 +294,11 @@ Test-driven, `pytest.mark.parametrize` throughout.
 **Probes are the primary suite, run with `fw=(3, 10)`.**
 For every probe file, the validator's first error line must equal the hardware's recorded outcome: the reported line, or no error for "loads".
 This pins the validator to the hardware rather than to anyone's reading of the template.
-The expected outcomes live in `test_probes.py` as a dict, transcribed from the two `RESULTS.md` files.
+The expected outcomes live in `test_probes.py` as a dict, transcribed from the `RESULTS.md` files.
+Round 3 also ran on 2.21; those outcomes are asserted with `fw=(2, 21)`.
 Probes the hardware accepted but that should warn assert the warning as well.
 
-**Firmware tests:** each firmware-dependent rule is asserted on both sides of its threshold — drum row 9 on 3.00 and 3.10, `TYPE POLYAT` on 3.10 and 3.20, a `[CC]` default on 3.10 and 3.20 — plus the default being 3.21.
+**Firmware tests:** each firmware-dependent rule is asserted on both sides of its threshold — tab on 1.13 and 1.14, `CC_PAIR:` on 1.12 and 1.13, `USBD1` on 2.21 and 3.00, a `[CC]` default on 2.21, 3.10 and 3.20, drum row 9 on 3.00 and 3.10, `TYPE POLYAT` on 3.10 and 3.20 — plus the default being 3.21.
 
 **Rule tests** cover what probes don't: range boundaries for unprobed sections (`CC_PAIR`, CV voltages, drum channels), asserting exact line and message.
 
@@ -306,10 +317,11 @@ Probing replaced guessing.
 
 **Firmware selection, defaulting to the latest.**
 The original design deferred versioning as speculative.
-The changelog made it concrete: three rules differ between 3.00 and 3.21, and one of them silently discards every section default the author has written on 3.10.
+The changelog made it concrete: seven rules differ between 1.12 and 3.21, and one of them silently discards every section default the author has written on 3.10.
 The default is the latest release, so files written for sharing are checked against what most people run; `--fw 3.10` checks against the author's own hardware.
 3.20 projects do not open on 3.10, so owners may reasonably stay on 3.10 for some time.
-Firmware before 3.00 is unsupported: its name character set is unknown and virtual ports did not exist.
+The floor is 1.12: probing 2.21 showed the same name character set as 3.10, and the changelog dates every other difference back to 1.12.
+Before 1.12 the parser was "less strict" in ways nobody documented.
 
 **Python and Textual rather than Go and bubbletea.**
 Consistency with the surrounding projects, and the grammar is regex-shaped.
@@ -319,16 +331,16 @@ The architecture did not depend on the language.
 The manual (§5.7) describes PC values as 0–127; the file format is one-indexed, and PC 0 is rejected.
 A comment in `rules.py` records this so it is not "fixed" later.
 
-**Warnings for accepted-but-unverified syntax.**
-Shorthand defaults, bare NRPN fourth fields and extra ASSIGN fields all load, but nothing confirms the Hapax does what the author intended with them.
-They warn rather than pass silently, because a silently dropped default is exactly the bug this tool exists to catch — as 3.10's own section defaults demonstrate.
+**Undocumented syntax is judged by what it does, not whether it loads.**
+The `[CC]` and `[NRPN]` shorthand defaults load and set the default (E03, E04), so they are valid.
+The ASSIGN `CC:74:100` form loads and drops the default (E05), so it warns.
+A silently dropped default is exactly the bug this tool exists to catch — as 3.10's own section defaults demonstrate.
 
 ## Open questions
 
 - Name length limit: unprobed; long names may be truncated or rejected. The 1.15 changelog mentions long file names preventing loading, so file-name length may matter too.
 - `[COMMENT]` character set: unprobed; the validator does not check it.
-- Whether shorthand and bare-fourth-field defaults apply on 3.20, where section defaults finally work: needs 3.20 hardware.
-- Behaviour on 3.20 and 3.21 is inferred from the changelog, not probed.
+- Behaviour on 3.20 and 3.21, and on 1.12–2.20, is inferred from the changelog, not probed.
 
 ## Later
 

@@ -1,0 +1,10 @@
+# PROBE E04: NRPN bare 4th field 0:3:7:64 - does the lane start at 64?
+VERSION 1
+TRACKNAME E04
+TYPE POLY
+[NRPN]
+0:3:7:64 E04 nrpn
+[/NRPN]
+[AUTOMATION]
+NRPN:0:3:7
+[/AUTOMATION]
