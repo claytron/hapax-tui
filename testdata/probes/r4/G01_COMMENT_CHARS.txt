@@ -1,0 +1,18 @@
+# PROBE G01: name-rejected characters in [COMMENT], one per line; error line = first rejected
+VERSION 1
+TRACKNAME G01
+[COMMENT]
+G01 A%B
+G01 A&B
+G01 A;B
+G01 A[B
+G01 A\B
+G01 A]B
+G01 A^B
+G01 A`B
+G01 A{B
+G01 A|B
+G01 A}B
+G01 A~B
+G01 AéB
+[/COMMENT]

@@ -1,0 +1,5 @@
+# PROBE F04: [COMMENT] never closed before end of file
+VERSION 1
+TRACKNAME F04
+[COMMENT]
+F04 open comment
