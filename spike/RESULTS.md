@@ -3,7 +3,7 @@
 Run: `uv run spike/spike.py` (lark 1.x, LALR, contextual lexer, one start rule per line kind).
 Verdict: **Lark holds.** No fallback to a hand-written parser.
 
-## Probes (68 files, OS 3.10 outcomes)
+## Probes (71 files, OS 3.10 outcomes)
 
 The grammar and structure pass never disagree with the hardware in the dangerous direction: nothing the Hapax loaded is rejected.
 Every hardware rejection the grammar owns is caught on the reported line: `DEFAULT=NULL` (P03), no name (A06), unclosed section (P15), unknown section (A11).
