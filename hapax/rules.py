@@ -226,8 +226,62 @@ _ENTRY_RULES = {
 }
 
 
+def _null(v):
+    return "NULL" if v is None else v
+
+
+def _nrpn_key(e):
+    # 0:1026:7 and :1026:7 address the same parameter as 8:2:7 (template)
+    return divmod(e.lsb, 128) if not e.msb else (e.msb, e.lsb)
+
+
+def _duplicates(entries, key, code, label):
+    first = {}
+    for e in entries:
+        k = key(e)
+        if k in first:
+            yield _warning(code, f"{label(e)} is already defined on line {first[k]}", e)
+        else:
+            first[k] = e.line
+
+
 def _document(doc: Document, fw):
-    yield from ()  # Task 3
+    if fw < (1, 14):  # 1.14 changelog: tabs no longer break loading
+        for n, raw in enumerate(doc.lines, 1):
+            if (i := raw.find("\t")) >= 0:
+                yield Finding(Severity.ERROR, "tab", "tabs break loading before 1.14; use spaces", n, Span(i, i + 1))
+
+    yield from _duplicates(doc.directives, lambda d: d.key, "directive.duplicate", lambda d: d.key)  # B07 loads
+
+    def section(name):
+        return [e for s in doc.sections if s.name == name for e in s.entries]
+
+    cc, pc, pairs, nrpn = section("CC"), section("PC"), section("CC_PAIR"), section("NRPN")
+    drums, assign, automation = section("DRUMLANES"), section("ASSIGN"), section("AUTOMATION")
+    yield from _duplicates(cc, lambda e: e.cc, "cc.duplicate", lambda e: f"CC {e.cc}")  # A05 loads
+    yield from _duplicates(
+        pc, lambda e: (e.pc, e.msb, e.lsb), "pc.duplicate",
+        lambda e: f"PC {e.pc}:{_null(e.msb)}:{_null(e.lsb)}")
+    yield from _duplicates(
+        pairs, lambda e: (e.msb, e.lsb), "cc_pair.duplicate", lambda e: f"CC pair {e.msb}:{e.lsb}")
+    yield from _duplicates(
+        nrpn, _nrpn_key, "nrpn.duplicate", lambda e: "NRPN {}:{}".format(*_nrpn_key(e)))
+    yield from _duplicates(drums, lambda e: e.row, "drum.duplicate", lambda e: f"drum row {e.row}")  # P05 loads
+    yield from _duplicates(assign, lambda e: e.pot, "assign.duplicate", lambda e: f"pot {e.pot}")
+
+    if len(automation) > 64:  # P08: the 65th lane is rejected
+        yield _error("automation.count", "more than 64 automation lanes", automation[64])
+    if len(pc) > 128:  # template limit; P09 shows 3.10 loads 129
+        yield _warning("pc.count", "more than 128 PCs; the template's limit", pc[128])
+
+    last = {d.key: d for d in doc.directives if d.value}  # which duplicate wins is unprobed; assume the last
+    track_type = last["TYPE"].value.upper() if "TYPE" in last else None
+    # The hardware discards [DRUMLANES] on a non-DRUM track; TYPE NULL keeps the current type, which may be DRUM.
+    if drums and track_type in ("POLY", "MPE", "POLYAT", "AFTR"):
+        yield _warning("drum.not_drum", f"[DRUMLANES] is discarded on a {track_type} track", drums[0])
+    inport = last.get("INPORT")
+    if track_type == "MPE" and inport and inport.value.upper() in ("A", "B"):  # 3.20 changelog
+        yield _warning("inport.mpe", f"MPE cannot use DIN input port {inport.value.upper()}", inport, "value")
 
 
 def validate(doc: Document, fw: tuple[int, int] = LATEST) -> list[Finding]:

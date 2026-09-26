@@ -195,3 +195,47 @@ def test_parse_fw():
     for bad in ["1.11", "3.11", "3.1", "4", "latest"]:
         with pytest.raises(ValueError):
             parse_fw(bad)
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("[CC]\n31 a\n31 b\n[/CC]", [("cc.duplicate", 3)]),  # A05
+    ("[CC]\n120 a\n[/CC]", [("cc.unusable", 2)]),  # A03
+    ("[PC]\n1 a\n1:NULL:NULL b\n1:0:NULL c\n[/PC]", [("pc.duplicate", 3)]),
+    ("[NRPN]\n0:1026:7 a\n8:2:7 b\n:1026:7 c\n[/NRPN]", [("nrpn.duplicate", 3), ("nrpn.duplicate", 4)]),
+    ("[CC_PAIR]\n1:33 a\n1:33 b\n[/CC_PAIR]", [("cc_pair.duplicate", 3)]),
+    ("[DRUMLANES]\n1:NULL:NULL:36 a\n1:NULL:NULL:37 b\n[/DRUMLANES]", [("drum.duplicate", 3)]),  # P05
+    ("TYPE POLY\n[DRUMLANES]\n1:NULL:NULL:36 a\n[/DRUMLANES]", [("drum.not_drum", 3)]),  # A10
+    ("TYPE NULL\n[DRUMLANES]\n1:NULL:NULL:36 a\n[/DRUMLANES]", []),
+    ("TYPE MPE\nINPORT A", [("inport.mpe", 2)]),
+    ("TYPE POLY\nTYPE DRUM", [("directive.duplicate", 2)]),  # B07
+    ("[ASSIGN]\n1 CC:1\n1 CC:2\n[/ASSIGN]", [("assign.duplicate", 3)]),
+    ("[ASSIGN]\n1 CC:74:100\n[/ASSIGN]", [("assign.extra", 2)]),  # E05
+    ("[ASSIGN]\n4 CC:12 Name Text DEFAULT=100\n[/ASSIGN]", [("assign.text", 2)]),  # P06
+    ("[ASSIGN]\n5 PB whatever\n[/ASSIGN]", []),
+    ("[AUTOMATION]\nCC:71 DEFAULT=20\n[/AUTOMATION]", []),  # P07
+])
+def test_warnings(text, expected):
+    assert codes(text) == expected
+
+
+def test_65th_automation_lane_is_an_error():  # P08
+    body = "\n".join(f"CC:{i}" for i in range(65))
+    assert codes(f"[AUTOMATION]\n{body}\n[/AUTOMATION]") == [("automation.count", 66)]
+
+
+def test_129th_pc_warns():  # P09
+    body = "\n".join(f"{i} x{i}" for i in range(1, 129))
+    assert codes(f"[PC]\n{body}\n1:1:NULL y\n[/PC]") == [("pc.count", 130)]
+
+
+@pytest.mark.parametrize("fw, expected", [((1, 13), [("tab", 1), ("tab", 3)]), ((1, 14), [])])
+def test_tabs_break_loading_before_1_14(fw, expected):
+    fs = findings("VERSION\t1\n# ok\n[CC]\t# x\n[/CC]", fw)
+    assert [(f.code, f.line) for f in fs] == expected
+    if expected:
+        assert fs[0].span == Span(7, 8)
+
+
+def test_every_mistake_is_reported_not_just_the_first():
+    text = "OUTCHAN 17\n[CC]\n128 a\n74 b&c\n[/CC]\n[ASSIGN]\n9 CC:1\n[/ASSIGN]\n"
+    assert codes(text) == [("outchan.value", 1), ("cc.range", 3), ("name.char", 4), ("assign.range", 7)]
