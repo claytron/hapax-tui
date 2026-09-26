@@ -1,16 +1,15 @@
 # Hapax Instrument Definition Validator — Design
 
-Date: 2026-09-21
-Revised: 2026-09-25 — Python and Textual replace Go and bubbletea; rules rebuilt on hardware probes, firmware binaries and the firmware changelog; firmware selection added
-Status: draft, under review
+- Date: 2026-09-21
+- Revised: 2026-09-25 — Python and Textual replace Go and bubbletea; rules rebuilt on hardware probes, firmware binaries and the firmware changelog; firmware selection added; Lark parsing and a core shaped for real-time use by the TUI
+- Status: draft, under review
 
 ## Context
 
 Squarp Hapax instrument definitions are UTF-8 `.txt` files stored in the `HAPAX/` folder of the SD card, alongside projects.
 They name CCs and PCs, configure drum lanes, set input and output MIDI port and channel, and pre-create automation lanes and pot assignments.
 
-The Hapax already validates these files, but badly for authoring:
-it rejects the whole file at the **first** bad line with `SYNTAX ERROR line N`, and you only find out after copying the file to the card and loading it.
+The Hapax already validates these files, but badly for authoring: it rejects the whole file at the **first** bad line with `SYNTAX ERROR line N`, and you only find out after copying the file to the card and loading it.
 Worse, some mistakes load without complaint and silently do nothing.
 This tool reports every problem at once, before the file leaves the computer, for the firmware the file is meant for.
 
@@ -19,7 +18,7 @@ That stage is not part of this design.
 
 ## Scope
 
-```
+```text
 hapax validate [--strict] [--fw VERSION] [paths...]
 ```
 
@@ -89,12 +88,15 @@ Everything else in this spec was probed on 3.10 and 2.21 with identical results,
 
 Observed on 3.10 and 2.21 hardware.
 
-- The first error rejects the whole file. Nothing is partially loaded.
+- The first error rejects the whole file.
+  Nothing is partially loaded.
 - Line numbers are 1-based physical lines, comments and blank lines included.
 - `#` starts a comment anywhere on a line; text after it is ignored.
-- Whitespace is spaces or tabs (tabs from 1.14). CRLF line endings load.
+- Whitespace is spaces or tabs (tabs from 1.14).
+  CRLF line endings load.
 - Keywords are case-insensitive: `trackname`, `TYPE poly`, `[cc]`, `Default=` all load.
-- Every directive and every section is optional, including `VERSION`. A file of only `VERSION 1` and `TRACKNAME x` loads.
+- Every directive and every section is optional, including `VERSION`.
+  A file of only `VERSION 1` and `TRACKNAME x` loads.
 - Numbers may have leading zeros: `026` loads.
 - An unknown section header is accepted, but its first entry is a syntax error.
 - An unclosed section is reported at the next section header.
@@ -102,7 +104,8 @@ Observed on 3.10 and 2.21 hardware.
 ## Names
 
 TRACKNAME and every entry name use one character set.
-The documented set (alphanumerics, space, `_ - +`) is too strict. The set below is identical on 2.21 and 3.10.
+The documented set (alphanumerics, space, `_ - +`) is too strict.
+The set below is identical on 2.21 and 3.10.
 
 | Accepted | Rejected |
 |---|---|
@@ -113,8 +116,7 @@ A name is required wherever the syntax shows one: a `[CC]` entry with no name is
 
 ## Rules
 
-Severity follows one principle:
-**an error is something the target firmware rejects; a warning is something it accepts that is probably not what the author meant.**
+Severity follows one principle: **an error is something the target firmware rejects; a warning is something it accepts that is probably not what the author meant.**
 Nothing the target firmware accepts is reported as an error.
 
 Rules that depend on the firmware are marked **(fw)**.
@@ -147,10 +149,7 @@ Warnings: the same `PC:MSB:LSB` twice (a bare `PC` is `PC:NULL:NULL`); more than
 **`[CC]`** — `CC NAME` or `CC:DEFAULT=v NAME`.
 `CC` 0–127; `DEFAULT` 0–127, `DEFAULT=NULL` is rejected; out of range is an error except on 3.00–3.10, which neither check nor apply section defaults **(fw)**.
 `CC:v NAME` is an undocumented shorthand for `CC:DEFAULT=v NAME` — it sets the lane default on 2.21 (probe E03) — and is treated identically.
-Warnings:
-the same CC twice;
-`CC` above 119 (nameable but not usable in ASSIGN or AUTOMATION, where 120 is rejected);
-any default, `DEFAULT=v` or shorthand, on 3.00–3.10 **(fw)** — ignored on load; the message says to set it on the `[AUTOMATION]` line instead.
+Warnings: the same CC twice; `CC` above 119 (nameable but not usable in ASSIGN or AUTOMATION, where 120 is rejected); any default, `DEFAULT=v` or shorthand, on 3.00–3.10 **(fw)** — ignored on load; the message says to set it on the `[AUTOMATION]` line instead.
 
 **`[CC_PAIR]`** — `MSB_CC:LSB_CC NAME` or `MSB_CC:LSB_CC:DEFAULT=v NAME`; 14-bit CC.
 Each CC 0–127, `DEFAULT` 0–16383.
@@ -173,7 +172,8 @@ Warnings: the same pot twice; an extra `:v` after a CC value (`CC:74:100`) — i
 At most 64 entries; the 65th is rejected.
 `DEFAULT=` here is undocumented in the template but honoured on every firmware probed (2.21, and per the changelog 3.00–3.21) — it is the only default 3.00 and 3.10 apply — so it is valid and not reported.
 
-**`[COMMENT]`** — free text shown on the Hapax. Structure only; contents not validated.
+**`[COMMENT]`** — free text shown on the Hapax.
+Structure only; contents not validated.
 
 **Unknown section** — an error on its first entry, as the hardware reports it; a warning if it is empty.
 
@@ -181,69 +181,136 @@ At most 64 entries; the 65th is rejected.
 
 ## Architecture
 
-### Parser — line-oriented and lossless
+The validator is a library first.
+The CLI is one thin front end; the TUI will be another, calling the same functions on every edit to validate input as it is typed.
+That use shapes the core: pure functions, cheap re-validation, and findings precise enough to underline a single field.
 
-`hapax/parse.py`, plain dataclasses, no dependencies, firmware-agnostic.
+```text
+                 ┌──────────── hapax (library, no I/O) ─────────────┐
+ text ──► parse ─┤ Document ──► validate(doc, fw) ──► list[Finding] │
+                 └───────────────────────────────────────────────────┘
+                        ▲                                   │
+     CLI: read files ───┘                                   └──► print, exit code
+     TUI: on every edit ─┘                                  └──► underline, gutter, form errors
+```
+
+### Public API
 
 ```python
-@dataclass
-class Directive:
-    key: str        # upper-cased
-    value: str
-    line: int
+def parse(text: str) -> Document: ...
+def validate(doc: Document, fw: tuple[int, int] = LATEST) -> list[Finding]: ...
+```
 
-@dataclass
-class Entry:
-    text: str       # comment stripped, whitespace-trimmed
+`parse` never raises: anything that fails to parse becomes a finding carried on the `Document`.
+`validate` is pure — no printing, no exit codes, no file access — and returns parse findings and rule findings together, sorted by line.
+The CLI and the TUI own all I/O and presentation.
+
+### Parsing — two passes, Lark per line
+
+`hapax/parse.py` and `hapax/grammar.lark`.
+
+The **structure pass** walks the lines once, classifying each as blank, comment, directive, section header, section close or entry, and tracking the enclosing section.
+It reports structural problems: an unclosed section, a stray closing tag, an unknown section.
+
+The **entry pass** parses each directive and entry on its own with [Lark](https://github.com/lark-parser/lark) in LALR mode, using the start rule for its kind — `cc_entry`, `nrpn_entry`, `drum_entry`, `assign_entry`, and so on, all in one grammar file.
+Parsing line by line is what lets a grammar report every error in a file rather than stopping at the first, as the Hapax does.
+The grammar file is also the most readable statement of the format: it replaces the per-entry regexes of an earlier draft and much of this spec's prose about shapes.
+
+Each line is parsed as it appears on disk minus its comment, leading whitespace kept, so Lark's column numbers are the columns on screen.
+Keyword case-insensitivity, leading zeros, `NULL`, the empty NRPN MSB and the shorthand defaults are all expressed in the grammar.
+
+Line parses are memoised with `functools.lru_cache` keyed on `(kind, text)`.
+The TUI re-parses the whole document on each edit and only the edited line misses the cache, so there is no incremental parser to maintain.
+
+A Lark `Transformer` turns each parse tree into a dataclass.
+
+### Model
+
+```python
+@dataclass(frozen=True)
+class Span:
+    start: int  # column in the raw line
+    end: int
+
+@dataclass(frozen=True)
+class Entry:  # base; one subclass per kind: CcEntry, NrpnEntry, DrumEntry, ...
     line: int
+    raw: str                    # the line exactly as on disk
+    spans: dict[str, Span]      # field name -> columns, e.g. spans["lsb"]
+
+@dataclass(frozen=True)
+class NrpnEntry(Entry):
+    msb: int | None
+    lsb: int
+    depth: int
+    default: int | None
+    name: str
 
 @dataclass
 class Section:
-    name: str       # upper-cased
-    entries: list[Entry]
+    name: str                   # upper-cased
     start: int
-    end: int | None # None if never closed
+    end: int | None             # None if never closed
+    entries: list[Entry]
 
 @dataclass
-class DefFile:
-    path: Path
-    lines: list[str]        # raw, verbatim
+class Document:
+    lines: list[str]            # raw, verbatim
     directives: list[Directive]
     sections: list[Section]
+    parse_findings: list[Finding]
 ```
 
 Nothing is discarded, which gives findings their line numbers and lets the future editor write files back without disturbing comments or layout.
-The parser reports only structural problems — unclosed section, stray closing tag.
-Everything else belongs to the rules.
 
 ### Rules
 
-`hapax/rules.py`: ranges and enumerations as module-level constants, one function per directive and per section, dispatched by name.
-Entry grammars are regex-shaped, so each rule is a compiled pattern plus range checks on the groups.
-A comment on each constant cites its source: a probe ID, a firmware version, or the template.
+`hapax/rules.py`, in two kinds:
 
-Firmware is a `tuple[int, int]` passed to every rule function.
-The firmware-dependent rules are plain comparisons against it, such as `fw >= (3, 20)`, next to a comment naming the changelog entry.
-There is no per-version ruleset and no version registry — three comparisons do not need one.
+- **Entry rules** see one parsed entry and the firmware: ranges, enumerations, the firmware-dependent rules, name characters.
+  They are independent of each other and of the rest of the file.
+- **Document rules** see the whole `Document`: duplicates, the 64-lane cap, drum lanes on a non-DRUM track, `TYPE MPE` with a DIN input, more than 128 PCs.
+
+`validate` runs both.
+The split is what makes a finer cache possible later — entry-rule results keyed like line parses — but it is not added until a measurement asks for it.
+
+Ranges and enumerations are module-level constants, each with a comment citing its source: a probe ID, a firmware version, or the template.
+Firmware is a `tuple[int, int]`; each firmware-dependent rule is a plain comparison such as `fw >= (3, 20)` beside a comment naming the changelog entry.
+There is no per-version ruleset and no version registry.
 
 ### Findings
 
 ```python
-@dataclass
+@dataclass(frozen=True)
 class Finding:
-    severity: Severity   # StrEnum: ERROR | WARNING
-    line: int            # 0 for file-level findings
+    severity: Severity           # StrEnum: ERROR | WARNING
+    code: str                    # stable id: "cc.range", "defaults.ignored", ...
     message: str
+    line: int                    # 1-based; 0 = whole file
+    span: Span | None            # columns to underline
+    field: str | None            # model field, e.g. "lsb", for form-based editing
 ```
 
-`--strict` makes warnings count toward the exit code.
+`span` lets the TUI underline exactly `2000` in `:2000:7 BAR`; `field` lets a form-based editor put the error beside the LSB input.
+`code` is stable across message rewording: tests assert on it, and a future option to silence a warning would key on it.
+
+Parse errors carry Lark's expected tokens, rendered with friendly terminal names — `expected DEFAULT= or a number` rather than `Unexpected token`.
+LALR also keeps Lark's interactive parser available, which can list the tokens acceptable at a cursor position: the basis for completion in the TUI, not built now.
+
+### What stays out of the library
+
+When to show a finding is a front-end decision: the TUI may hold back errors on the line under the cursor until it is left.
+The library has no "in-progress input" mode; it reports accurately and the caller chooses.
+
+Writing entries back to text belongs to the editor's design.
+The lossless model already fixes its rule: a line is regenerated only when it is edited; every other line keeps its raw text.
 
 ### CLI
 
-`hapax/cli.py`, standard library `argparse`.
+`hapax/cli.py`, standard library `argparse`: reads files, calls `parse` and `validate`, prints, sets the exit code.
 The `validate` subcommand exists from the start so a bare `hapax` can become the TUI later.
 
-```
+```text
 $ hapax validate --fw 3.10 ~/Music/hapax\ inst/
 
 DD-500.txt         OK
@@ -260,19 +327,22 @@ Plain text, no colour — Rich arrives with Textual at the TUI stage.
 - A file that is not valid UTF-8 produces an error finding at line 0; other files are still checked.
 - A path that does not exist, no `.txt` files found at all, or an unsupported `--fw`, exits 2 with a message.
 - Exit codes: 0 clean, 1 findings that count, 2 usage or I/O failure.
+- `--strict` makes warnings count toward the exit code.
 
 ## Layout
 
-```
+```text
 pyproject.toml              uv; [project.scripts] hapax = "hapax.cli:main"
 .python-version             3.13
 uv.lock
 hapax/
-  __init__.py
-  parse.py
-  rules.py
+  __init__.py      re-exports parse, validate, Finding, LATEST
+  grammar.lark     entry and directive grammars, one start rule each
+  parse.py         model dataclasses, structure pass, cached per-line Lark parsing
+  rules.py         entry rules, document rules, validate()
   cli.py
 tests/
+  test_parse.py
   test_probes.py
   test_rules.py
   test_corpus.py
@@ -284,12 +354,17 @@ testdata/
 ```
 
 Flat package, matching the sibling projects in `claytron/`.
-No runtime dependencies; `pytest` is the only development dependency.
+One runtime dependency, `lark`, pure Python; `pytest` is the only development dependency.
+Textual is added at the TUI stage.
 Firmware binaries are not committed; the keyword diff is recorded in this spec and can be rerun from the published downloads.
 
 ## Testing
 
 Test-driven, `pytest.mark.parametrize` throughout.
+
+**The first task is a Lark spike.**
+Write the grammar and run it over the author's 14 files, the 155 community files and every probe file, checking two things: names with spaces and punctuation split cleanly from the fields before them, and the grammar accepts and rejects exactly what the hardware did.
+If it does not hold up, fall back to a hand-written line parser behind the same `parse()`.
 
 **Probes are the primary suite, run with `fw=(3, 10)`.**
 For every probe file, the validator's first error line must equal the hardware's recorded outcome: the reported line, or no error for "loads".
@@ -300,16 +375,30 @@ Probes the hardware accepted but that should warn assert the warning as well.
 
 **Firmware tests:** each firmware-dependent rule is asserted on both sides of its threshold — tab on 1.13 and 1.14, `CC_PAIR:` on 1.12 and 1.13, `USBD1` on 2.21 and 3.00, a `[CC]` default on 2.21, 3.10 and 3.20, drum row 9 on 3.00 and 3.10, `TYPE POLYAT` on 3.10 and 3.20 — plus the default being 3.21.
 
-**Rule tests** cover what probes don't: range boundaries for unprobed sections (`CC_PAIR`, CV voltages, drum channels), asserting exact line and message.
+**Rule tests** cover what probes don't: range boundaries for unprobed sections (`CC_PAIR`, CV voltages, drum channels).
+They assert `code`, `line` and `span`, not message text.
 
-**Corpus tests:**
-the author's 14 files must produce no errors on 3.10;
-the 155 community files must parse without raising, and a handful of known mistakes in them are asserted by line — `OUTAN` in `uptown/flash.txt`, `105:LPF VEL` in `toraiz/as-1.txt`, `DEFAULT=NULL` in `pandamidi/future_impact.txt`.
+**Parse tests** cover the grammar directly: every entry shape, including shorthand defaults, empty MSB, `NULL`, leading zeros, case, tabs, and names containing spaces and punctuation; spans for each field; expected-token lists on failure.
+
+**Performance guard:** parsing and validating `Novation_Peak.txt` (364 lines) must stay under 50 ms, cold cache — a generous bound that still catches a regression that would make the TUI lag while typing.
+
+**Corpus tests:** the author's 14 files must produce no errors on 3.10; the 155 community files must parse without raising, and a handful of known mistakes in them are asserted by line — `OUTAN` in `uptown/flash.txt`, `105:LPF VEL` in `toraiz/as-1.txt`, `DEFAULT=NULL` in `pandamidi/future_impact.txt`.
 
 The community repository is CC0, so vendoring it is permitted.
 Forum posts are not vendored.
 
 ## Decisions worth recording
+
+**A library shaped for the TUI, before the TUI exists.**
+Real-time validation in the editor is a known next stage, and retrofitting spans, stable codes and a pure API later would touch every rule.
+They cost little now; incremental parsing, completion and result caching are not built until needed.
+
+**Lark over regexes, pydantic, and hand-written parsing.**
+The entry shapes — optional fields, shorthands, `NULL`, empty MSB, names with spaces — made a stack of regexes hard to read.
+A grammar file states the format once, tracks columns for free, and its expected-token errors improve messages in both front ends.
+Pydantic was considered for validation and rejected: it has no warnings, reports field paths rather than file lines, and most rules here depend on firmware or on other fields, which would all become custom validators anyway.
+If Lark fails the first spike (see Testing), a hand-written line parser can sit behind the same `parse()` without changing anything else.
+
 
 **The hardware decides severity.**
 The template's prose was wrong in both directions: it documents a character set narrower than what loads, a PC limit that isn't enforced, and — for the author's 3.10 — a `TYPE POLYAT` that is rejected.
@@ -324,7 +413,7 @@ The floor is 1.12: probing 2.21 showed the same name character set as 3.10, and 
 Before 1.12 the parser was "less strict" in ways nobody documented.
 
 **Python and Textual rather than Go and bubbletea.**
-Consistency with the surrounding projects, and the grammar is regex-shaped.
+Consistency with the surrounding projects.
 The architecture did not depend on the language.
 
 **PC is 1–128 in the file, 0–127 on the wire.**
@@ -338,11 +427,13 @@ A silently dropped default is exactly the bug this tool exists to catch — as 3
 
 ## Open questions
 
-- Name length limit: unprobed; long names may be truncated or rejected. The 1.15 changelog mentions long file names preventing loading, so file-name length may matter too.
+- Name length limit: unprobed; long names may be truncated or rejected.
+  The 1.15 changelog mentions long file names preventing loading, so file-name length may matter too.
 - `[COMMENT]` character set: unprobed; the validator does not check it.
 - Behaviour on 3.20 and 3.21, and on 1.12–2.20, is inferred from the changelog, not probed.
 
 ## Later
 
-A Textual TUI over the same `hapax.parse` and `hapax.rules`: browse definitions with validation status, view detail, then edit in place, writing back through the lossless parser.
+A Textual TUI over the same `parse` and `validate`: browse definitions with validation status, view detail, then edit in place with findings shown as you type, writing back through the lossless model.
+Rich for colour and Lark's interactive parser for completion arrive with it.
 Each stage gets its own design.
