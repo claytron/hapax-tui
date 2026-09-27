@@ -23,10 +23,14 @@ ON_3_10 = {
     "D01_AUTO_CCPAIR": None, "D02_ASSIGN_CCPAIR": None,
     **{f"C{i:02}": None for i in range(1, 24)},
     **{f"C{i:02}": 5 for i in (4, 7, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22)},
+    # r4/RESULTS.md
+    "F01_PC_NONAME": 5, "F02_PC_MSB_NONAME": 5, "F03_DRUM_NONAME": 6, "F04_COMMENT_EOF": None,
+    "F05_CC_EOF": None, "G01_COMMENT_CHARS": 5, "H01_CC_NAME_LEN": None, "H02_TRACKNAME_LEN": None,
+    "H03_LONG_FILE_NAME_" + "x" * 45: None,
 }
 # Round 3 on 2.21 (r3/RESULTS.md): P05, every r2 file and the E files; differences from 3.10 only.
 ON_2_21 = {
-    **{k: v for k, v in ON_3_10.items() if not k.startswith("P")},
+    **{k: v for k, v in ON_3_10.items() if k[0] in "ABCD"},
     "P05_DRUM16": 11, "A07_CC_DEF128": 6, "B03_OUTPORT_USBD1": 4,
     "E01_CC_SECTION_DEFAULT": None, "E02_AUTO_LINE_DEFAULT": None, "E03_CC_SHORTHAND_DEFAULT": None,
     "E04_NRPN_BARE_DEFAULT": None, "E05_ASSIGN_EXTRA_FIELD": None,
@@ -51,7 +55,7 @@ def first_error(path, fw):
 
 
 def test_every_recorded_probe_is_found():
-    assert len(probe_files(ON_3_10)) == 66
+    assert len(probe_files(ON_3_10)) == 75
     assert len(probe_files(ON_2_21)) == 54
 
 
@@ -82,6 +86,9 @@ def test_probe_on_2_21(path):
     ("E01_CC_SECTION_DEFAULT", (3, 10), "default.ignored"),
     ("E03_CC_SHORTHAND_DEFAULT", (3, 10), "default.ignored"),
     ("E05_ASSIGN_EXTRA_FIELD", (2, 21), "assign.extra"),
+    ("F04_COMMENT_EOF", (3, 10), "section.unclosed_eof"),
+    ("H01_CC_NAME_LEN", (3, 10), "name.long"),
+    ("H02_TRACKNAME_LEN", (3, 10), "name.long"),
 ])
 def test_accepted_probes_that_should_warn(stem, fw, code):
     [path] = PROBES.rglob(f"{stem}.txt")

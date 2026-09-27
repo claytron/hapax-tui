@@ -112,7 +112,12 @@ The set below is identical on 2.21 and 3.10.
 | `A–Z a–z 0–9`, space, `_ - + ! " $ ' ( ) * , . / : < = > ? @` | ``% & ; [ \ ] ^ ` { \| } ~``, any non-ASCII |
 
 Probed on CC names and TRACKNAME; applied to PC, NRPN, CC_PAIR and drum lane names on the assumption that one routine handles all names.
-A name is required wherever the syntax shows one: a `[CC]` entry with no name is rejected.
+A name is required wherever the syntax shows one: `[CC]`, `[PC]` and `[DRUMLANES]` entries with no name are rejected (A06, F01–F03).
+`[COMMENT]` text uses the same character set: every character rejected in names is rejected there (G01).
+
+Names of any length load, but only the start is shown: 15 characters in the CC list (H01, up to 100 characters), 9 in the track header (H02, 64 characters).
+A longer name is a warning that underlines the hidden tail; the 15-character limit is applied to every entry name on the same one-routine assumption.
+File names of 64 characters load (H03).
 
 ## Rules
 
@@ -173,11 +178,12 @@ At most 64 entries; the 65th is rejected.
 `DEFAULT=` here is undocumented in the template but honoured on every firmware probed (2.21, and per the changelog 3.00–3.21) — it is the only default 3.00 and 3.10 apply — so it is valid and not reported.
 
 **`[COMMENT]`** — free text shown on the Hapax.
-Structure only; contents not validated.
+Each line is checked against the name character set (G01); length is not checked.
 
 **Unknown section** — an error on its first entry, as the hardware reports it; a warning if it is empty.
 
-**Structure** — an unclosed section is an error; so is a closing tag with no matching open.
+**Structure** — a section left unclosed before the next header is an error (P15); so is a closing tag with no matching open.
+A section still open at end of file loads and works (F04, F05), so it is a warning.
 
 ## Architecture
 
@@ -433,11 +439,8 @@ A silently dropped default is exactly the bug this tool exists to catch — as 3
 
 ## Open questions
 
-- Name length limit: unprobed; long names may be truncated or rejected.
-  The 1.15 changelog mentions long file names preventing loading, so file-name length may matter too.
-- `[COMMENT]` character set: unprobed; the validator does not check it.
-- A section left open at end of file: unprobed; treated as unclosed (two community files end in an open `[COMMENT]`).
-- A PC or drum entry with no name: assumed rejected like a `[CC]` entry (A06); unprobed.
+- Display limits for PC, NRPN, CC_PAIR and drum lane names: assumed 15 like CC names; only the CC list was probed.
+- Header-looking lines such as `[Patch list]` inside `[COMMENT]`: treated as section headers; unprobed.
 - Behaviour on 3.20 and 3.21, and on 1.12–2.20, is inferred from the changelog, not probed.
 
 ## Later

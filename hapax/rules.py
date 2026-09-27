@@ -1,10 +1,13 @@
-"""Validation rules. Each constant and firmware comparison cites its source: a probe ID, a firmware version, or the template."""
+"""Validation rules.
+
+Each constant and firmware comparison cites its source: a probe ID, a firmware version, or the template.
+"""
 
 import re
 import string
 
 from .parse import (
-    AssignEntry, AutomationEntry, CcEntry, CcPairEntry, Directive, Document, DrumEntry,
+    AssignEntry, AutomationEntry, CcEntry, CcPairEntry, CommentLine, Directive, Document, DrumEntry,
     Entry, Finding, NrpnEntry, PcEntry, Severity, Span,
 )
 
@@ -16,6 +19,8 @@ RELEASES = (
 LATEST = (3, 21)
 
 # Probes P01, P02, C01-C23; identical on 2.21 and 3.10. Tab is whitespace from 1.14.
+NAME_SHOWN = 15  # H01: 100 characters load, the CC list shows 15
+TRACKNAME_SHOWN = 9  # H02: 64 characters load, the track header shows 9
 NAME_CHARS = frozenset(string.ascii_letters + string.digits + " \t_-+!\"$'()*,./:<=>?@")
 DIRECTIVES = {"VERSION", "TRACKNAME", "TYPE", "OUTPORT", "OUTCHAN", "INPORT", "INCHAN", "MAXRATE"}
 TYPES = {"POLY", "DRUM", "MPE", "NULL"}
@@ -56,8 +61,13 @@ def _range(kind, entry, field, lo, hi, label):
         yield _error(f"{kind}.range", f"{label} must be {lo}–{hi}, not {value}", entry, field)
 
 
-def _name(entry, field="name"):
+def _name(entry, field="name", shown=NAME_SHOWN):
     text = getattr(entry, field)
+    if shown and len(text) > shown:
+        span = entry.spans[field]
+        yield Finding(
+            Severity.WARNING, "name.long", f"only the first {shown} characters are shown: {text[:shown]!r}",
+            entry.line, Span(span.start + shown, span.end), field)
     for i, ch in enumerate(text):
         if ch not in NAME_CHARS:
             start = entry.spans[field].start + i
@@ -103,7 +113,7 @@ def _directive(e: Directive, fw):
             if value != "1":  # B06 loads
                 yield _warning("version", "VERSION should be 1", e, "value")
         case "TRACKNAME":
-            yield from _name(e, "value")
+            yield from _name(e, "value", shown=TRACKNAME_SHOWN)
         case "TYPE":
             if value in TYPES_3_20 and fw < (3, 20):
                 yield _error(code, f"TYPE {value} needs firmware 3.20", e, "value")
@@ -220,9 +230,13 @@ def _automation(e: AutomationEntry, fw):
     yield from _target("automation", e, fw)
 
 
+def _comment(e: CommentLine, fw):
+    yield from _name(e, "text", shown=None)  # G01: [COMMENT] rejects what names reject
+
+
 _ENTRY_RULES = {
     Directive: _directive, CcEntry: _cc, PcEntry: _pc, CcPairEntry: _cc_pair, NrpnEntry: _nrpn,
-    DrumEntry: _drum, AssignEntry: _assign, AutomationEntry: _automation,
+    DrumEntry: _drum, AssignEntry: _assign, AutomationEntry: _automation, CommentLine: _comment,
 }
 
 

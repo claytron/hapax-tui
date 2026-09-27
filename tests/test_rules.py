@@ -249,3 +249,35 @@ def test_every_mistake_is_reported_not_just_the_first():
 def test_trailing_unicode_whitespace_is_part_of_the_name(text, span):
     [f] = findings(text)
     assert (f.code, f.span) == ("name.char", span)
+
+
+@pytest.mark.parametrize("ch", list("%&;[\\]^`{|}~é"))  # G01: [COMMENT] rejects what names reject
+def test_comment_characters_are_checked(ch):
+    [f] = findings(f"[COMMENT]\nA{ch}B\n[/COMMENT]\n")
+    assert (f.code, f.line, f.span) == ("name.char", 2, Span(1, 2))
+
+
+def test_comment_text_with_accepted_characters_is_clean():
+    assert findings("[COMMENT]\n  Plain line, with: punctuation! (ok) 1+1=2 @ 50\n[/COMMENT]\n") == []
+
+
+@pytest.mark.parametrize("text, span", [
+    ("[CC]\n1 L16-567890123456\n[/CC]", Span(17, 18)),  # H01: the CC list shows 15 characters
+    ("[PC]\n1 L16-567890123456\n[/PC]", Span(17, 18)),
+    ("[NRPN]\n0:1:7 L16-567890123456\n[/NRPN]", Span(21, 22)),
+    ("[CC_PAIR]\n1:33 L16-567890123456\n[/CC_PAIR]", Span(20, 21)),
+    ("[DRUMLANES]\n1:NULL:NULL:36 L16-567890123456\n[/DRUMLANES]", Span(30, 31)),
+])
+def test_names_longer_than_15_characters_warn(text, span):
+    [f] = findings(text)
+    assert (f.code, f.line, f.severity, f.span) == ("name.long", 2, Severity.WARNING, span)
+
+
+def test_15_character_name_is_clean():
+    assert findings("[CC]\n1 L15-56789012345\n[/CC]") == []
+
+
+def test_tracknames_longer_than_9_characters_warn():  # H02: the track header shows 9
+    [f] = findings("TRACKNAME H02-567890")
+    assert (f.code, f.severity, f.span) == ("name.long", Severity.WARNING, Span(19, 20))
+    assert findings("TRACKNAME H02-56789") == []

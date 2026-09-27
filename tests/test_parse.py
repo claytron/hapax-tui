@@ -104,9 +104,10 @@ def test_unclosed_section_is_reported_at_the_next_header():  # P15
     assert len(doc.sections[1].entries) == 1
 
 
-def test_section_open_at_end_of_file_is_unclosed():
-    [f] = parse("[COMMENT]\nhello\n").parse_findings
-    assert (f.code, f.line) == ("section.unclosed", 1)
+@pytest.mark.parametrize("text", ["[COMMENT]\nhello\n", "[CC]\n74 x\n"])
+def test_section_open_at_end_of_file_loads_but_warns(text):  # F04, F05
+    [f] = parse(text).parse_findings
+    assert (f.code, f.line, f.severity) == ("section.unclosed_eof", 1, Severity.WARNING)
 
 
 def test_stray_close():

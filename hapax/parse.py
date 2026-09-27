@@ -98,6 +98,11 @@ class AutomationEntry(Entry):
 
 
 @dataclass(frozen=True, kw_only=True)
+class CommentLine(Entry):
+    text: str  # leading whitespace removed; spans["text"] covers it
+
+
+@dataclass(frozen=True, kw_only=True)
 class AssignEntry(AutomationEntry):
     pot: int
 
@@ -224,13 +229,15 @@ def parse(text: str) -> Document:
     if text.startswith("﻿"):
         text = text[1:]
         findings.append(Finding(
-            Severity.WARNING, "file.bom", "file starts with a byte-order mark; untested on the Hapax, save without one", 1))
+            Severity.WARNING, "file.bom",
+            "file starts with a byte-order mark; untested on the Hapax, save without one", 1))
     doc = Document(text.split("\n"), [], [], findings)
     section: Section | None = None
     reported: set[int] = set()  # start lines of unknown sections already reported
 
     for n, raw in enumerate(doc.lines, 1):
-        body = raw.split("#", 1)[0].rstrip(" \t\r")  # only what _WS matches; other whitespace is a name character error
+        # Strip only what _WS matches; other whitespace reaches the name check.
+        body = raw.split("#", 1)[0].rstrip(" \t\r")
         if not body.strip(" \t"):
             continue
 
@@ -252,6 +259,9 @@ def parse(text: str) -> Document:
             continue
 
         if section and section.name == "COMMENT":
+            start = len(body) - len(body.lstrip(" \t"))
+            text = CommentLine(line=n, raw=raw, spans={"text": Span(start, len(body))}, text=body[start:])
+            section.entries.append(text)
             continue
         if section and section.name not in _START:  # A11: reported on its first entry
             if section.start not in reported:
@@ -267,8 +277,9 @@ def parse(text: str) -> Document:
         entry = cls(line=n, raw=raw, spans=dict(spans), **values)
         (section.entries if section else doc.directives).append(entry)
 
-    if section:  # open at end of file; unprobed (round 4, F04/F05)
-        findings.append(_error("section.unclosed", f"[{section.name}] is never closed", section.start))
+    if section:  # open at end of file: loads and works (F04, F05)
+        findings.append(Finding(
+            Severity.WARNING, "section.unclosed_eof", f"[{section.name}] is never closed; loads anyway", section.start))
     for s in doc.sections:
         if s.name not in SECTIONS and s.start not in reported:
             findings.append(Finding(Severity.WARNING, "section.unknown_empty", f"unknown section [{s.name}]", s.start))
