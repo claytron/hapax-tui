@@ -42,7 +42,7 @@ Anything outside the rule stays a finding for the author to fix by hand.
 | Code | Fix |
 | --- | --- |
 | `file.bom` | Drop the byte-order mark. |
-| `section.unclosed` | Insert `[/X]` on the line before the next header. |
+| `section.unclosed` | Insert `[/X]` after the section's last non-blank line, before the next header. |
 | `section.unclosed_eof` | Append `[/X]` after the section's last non-blank line. |
 | `section.stray_close` | Delete the line. |
 | `version` | Set the value to `1`, keeping any trailing comment. |
@@ -85,9 +85,12 @@ There is no separate `dump`.
 
 ### `hapax/fix.py`
 
-`fix(lines, fw) -> (lines, list[Applied])`, where `Applied` is `(code, line, description)` with `line` as it was before fixing.
+`fix(text, fw) -> (text, list[Applied])`, where `Applied` is `(code, line, description)`.
+It takes text rather than lines because the parser strips a BOM before splitting.
+`line` is the line in the document the fix ran on; that is the original file except for fixes a later pass enabled.
 Each fix is a small function keyed on a finding code; it receives the finding and document and returns line edits (replace, insert, delete).
 Edits from one pass are applied bottom-up so earlier line numbers stay valid.
+A pass takes at most one edit per line; a fix whose lines are already claimed waits for the next pass.
 Rendered replacements build the edited entry with `dataclasses.replace` and call `render`.
 
 ### `hapax/cli.py`
@@ -101,5 +104,6 @@ Gains the `fix` subcommand, sharing path expansion and the finding printer with 
 - **Untouched output:** writing a parsed document with no edits reproduces the input bytes (minus a BOM).
 - **Each fix:** before/after string pairs in `tests/test_fix.py`, including every hand-fix fallback for moved defaults.
 - **Idempotence:** `fix` on its own output changes nothing.
-- **Corpus safety:** fixing any corpus file never adds a finding code the file did not already have, and every line not reported as fixed is unchanged.
+- **Corpus safety:** fixing any corpus file never adds an error code the file did not already have.
+  Warnings may appear: transliterating `ß` to `ss` can push a name past what the screen shows.
 - **CLI:** in-place write, `--diff` leaves the file alone, output format, exit codes.
