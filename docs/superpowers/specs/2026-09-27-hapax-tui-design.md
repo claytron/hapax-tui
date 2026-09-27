@@ -150,6 +150,23 @@ An existing name is refused.
 `cli.py` routes a bare `hapax` (no `validate`/`fix`) to `tui.app.main`.
 `textual` becomes a dependency.
 
+## Decisions made while planning
+
+- The browser is always the bottom screen: `hapax FILE` opens straight into the editor, and leaving it lands in the browser for the file's directory.
+- The firmware shows in the title bar with the file name and an unsaved marker, not the footer.
+- The open gate checks for refusal before offering fixes, so it never asks to fix a file it will then refuse.
+- The gate also refuses `section.unknown_empty` and any section-structure finding left after fixing; an unknown section has no columns to show.
+- Any edit that would add one of those structural findings is refused: a row form's `enter`, and text typed into a COMMENT section (`[/COMMENT]` in the text).
+- Column specs carry an input pattern instead of a range: number fields accept only digits, names anything but `#`, so no value can change a line's shape; the validator's messages carry the ranges.
+- A blank name is refused rather than written; a blank number, or `NULL` where allowed, means absent.
+- A header field set blank removes its directive; with duplicate directives the header tab shows and edits the last one.
+- A header value that is not one of the choices (`OUTCHAN 17`) is added to them so it stays visible with its finding.
+- Moving rows is `ctrl+↑`/`ctrl+↓` or `shift+↑`/`shift+↓`, since macOS takes `ctrl`+arrows for Mission Control.
+- The findings panel's location is the section and line (`CC line 12`), not the entry's number.
+- `ctrl+q` with unsaved changes asks, like leaving the editor.
+- The new-file dialog refuses a name that exists in any letter case, since SD cards ignore case.
+- Pilot tests run under `asyncio.run`, so no pytest plugin is added.
+
 ## Testing
 
 - **`edits.py`:** each operation on `lines`, checking the result parses to the intended entries and leaves other lines untouched.
