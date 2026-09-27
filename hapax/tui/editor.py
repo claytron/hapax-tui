@@ -169,7 +169,10 @@ class Editor(Screen):
 
     @property
     def dirty(self) -> bool:
-        return "\n".join(self.lines) != self.saved
+        # A COMMENT text area holding a refused edit shows text that saving would not write.
+        refused = any(
+            area.text != body_text(self.lines, self.doc.sections[int(area.id[4:])]) for area in self.query(TextArea))
+        return "\n".join(self.lines) != self.saved or refused
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -248,6 +251,7 @@ class Editor(Screen):
         return f"{'header' if tab is None else self.doc.sections[tab].name} line {f.line}"
 
     def apply(self, lines: list[str], focus: int | None = None) -> None:
+        self.query(RowForm).remove()  # an open form's line number may now name another row
         self.lines = lines
         self.analyse()
         self.refresh_views()

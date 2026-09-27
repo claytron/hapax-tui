@@ -60,7 +60,7 @@ class HapaxApp(App):
         self.push_screen(NewFile(directory, self.fw, name), created)
 
     async def action_quit(self) -> None:
-        if isinstance(self.screen, Editor) and self.screen.dirty:
+        if any(isinstance(s, Editor) and s.dirty for s in self.screen_stack):  # also under a dialog
             self.push_screen(Dialog("Discard unsaved changes and quit?", [], "Quit"), lambda ok: ok and self.exit())
         else:
             self.exit()

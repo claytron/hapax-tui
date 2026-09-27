@@ -317,3 +317,58 @@ def test_a_new_file_refuses_an_existing_name(tmp_path):
         assert "already exists" in str(app.screen.query_one("#problem").render())
 
     drive(tmp_path / "Other.txt", script)
+
+
+def test_an_open_row_form_closes_when_another_edit_moves_its_line(tmp_path):
+    path = write(tmp_path, "Small.txt", SMALL)
+
+    async def script(app, pilot):
+        editor = app.screen
+        editor.query_one(TabbedContent).active = "s0"
+        await pilot.pause()
+        table = editor.query_one("#table0", DataTable)
+        table.focus()
+        table.move_cursor(row=2)  # 130 Big
+        await pilot.press("enter")
+        await pilot.pause()
+        table.focus()
+        table.move_cursor(row=0)
+        await pilot.press("d")
+        await pilot.click("#yes")
+        await pilot.pause()
+        assert not editor.query(RowForm)  # its line number now names another row
+
+    drive(path, script)
+
+
+def test_quitting_from_a_dialog_over_unsaved_changes_asks(tmp_path):
+    path = write(tmp_path, "Small.txt", SMALL)
+
+    async def script(app, pilot):
+        editor = app.screen
+        editor.query_one("#h-OUTCHAN", Select).value = "3"
+        await pilot.pause()
+        editor.query_one(TabbedContent).active = "s0"
+        await pilot.pause()
+        editor.query_one("#table0", DataTable).focus()
+        await pilot.press("d")
+        await pilot.pause()
+        await pilot.press("ctrl+q")
+        await pilot.pause()
+        assert app.is_running
+        assert isinstance(app.screen, Dialog) and app.screen.yes == "Quit"
+
+    drive(path, script)
+
+
+def test_a_refused_comment_edit_counts_as_unsaved(tmp_path):
+    path = write(tmp_path, "Small.txt", SMALL)
+
+    async def script(app, pilot):
+        editor = app.screen
+        editor.query_one("#text1", TextArea).text = "Hi\n[/COMMENT]"
+        await pilot.pause()
+        assert editor.lines[10] == "Hello"
+        assert editor.dirty  # the text on screen is not what would be saved
+
+    drive(path, script)
