@@ -21,6 +21,7 @@ LATEST = (3, 21)
 # Probes P01, P02, C01-C23; identical on 2.21 and 3.10. Tab is whitespace from 1.14.
 NAME_SHOWN = 15  # H01: 100 characters load, the CC list shows 15
 TRACKNAME_SHOWN = 9  # H02: 64 characters load, the track header shows 9
+FILE_NAME_SHOWN = 27  # H03: a 64-character file name loads, the file list shows 27 before .txt
 NAME_CHARS = frozenset(string.ascii_letters + string.digits + " \t_-+!\"$'()*,./:<=>?@")
 DIRECTIVES = {"VERSION", "TRACKNAME", "TYPE", "OUTPORT", "OUTCHAN", "INPORT", "INCHAN", "MAXRATE"}
 TYPES = {"POLY", "DRUM", "MPE", "NULL"}
@@ -296,6 +297,16 @@ def _document(doc: Document, fw):
     inport = last.get("INPORT")
     if track_type == "MPE" and inport and inport.value.upper() in ("A", "B"):  # 3.20 changelog
         yield _warning("inport.mpe", f"MPE cannot use DIN input port {inport.value.upper()}", inport, "value")
+
+
+def check_file_name(name: str) -> list[Finding]:
+    """Findings for a definition's file name, which validate() never sees."""
+    stem = name.removesuffix(".txt").removesuffix(".TXT")
+    if len(stem) > FILE_NAME_SHOWN:
+        return [Finding(
+            Severity.WARNING, "file.name_long",
+            f"the file list shows only the first {FILE_NAME_SHOWN} characters: {stem[:FILE_NAME_SHOWN]!r}", 0)]
+    return []
 
 
 def validate(doc: Document, fw: tuple[int, int] = LATEST) -> list[Finding]:

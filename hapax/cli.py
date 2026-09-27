@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from .parse import Finding, Severity, parse
-from .rules import LATEST, RELEASES, fw_str, parse_fw, validate
+from .rules import LATEST, RELEASES, check_file_name, fw_str, parse_fw, validate
 
 
 def _plural(n: int, word: str) -> str:
@@ -61,7 +61,7 @@ def main(argv: list[str] | None = None) -> int:
     errors = warnings = 0
     for name, path in files:
         try:
-            findings = _check(path, fw)
+            findings = check_file_name(path.name) + _check(path, fw)
         except OSError as e:
             print(f"hapax: {e}", file=sys.stderr)
             return 2

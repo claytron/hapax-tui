@@ -118,7 +118,7 @@ A name is required wherever the syntax shows one: `[CC]`, `[PC]` and `[DRUMLANES
 Names of any length load, but only the start is shown: 15 characters in the CC list (H01, up to 100 characters), 9 in the track header (H02, 64 characters).
 A longer name is a warning that underlines the hidden tail; the 15-character limit is applied to every entry name on the same one-routine assumption.
 File names of 64 characters load (H03); the file list shows about 27 characters, fewer on the selected row.
-The validator does not check file names.
+A file name longer than 27 characters before `.txt` is a warning at line 0, from `check_file_name()`, since `validate()` never sees file names.
 
 ## Rules
 

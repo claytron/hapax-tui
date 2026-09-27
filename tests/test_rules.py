@@ -281,3 +281,10 @@ def test_tracknames_longer_than_9_characters_warn():  # H02: the track header sh
     [f] = findings("TRACKNAME H02-567890")
     assert (f.code, f.severity, f.span) == ("name.long", Severity.WARNING, Span(19, 20))
     assert findings("TRACKNAME H02-56789") == []
+
+
+def test_file_names_longer_than_27_characters_warn():  # H03: the file list shows 27
+    from hapax import check_file_name
+    [f] = check_file_name("H03_LONG_FILE_NAME_" + "x" * 45 + ".txt")
+    assert (f.code, f.line, f.severity) == ("file.name_long", 0, Severity.WARNING)
+    assert check_file_name("H03_LONG_FILE_NAME_xxxxxxxx.txt") == []

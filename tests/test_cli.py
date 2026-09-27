@@ -76,3 +76,9 @@ def test_usage_and_io_failures_exit_2(args, tmp_path, monkeypatch):
 
 def test_no_txt_files_exits_2(tmp_path):
     assert run(["validate", str(tmp_path)]) == 2
+
+
+def test_long_file_name_warns(tmp_path, capsys):
+    write(tmp_path, "A" * 28 + ".txt", "VERSION 1\n")
+    assert run(["validate", str(tmp_path)]) == 0
+    assert "1 warning\n  W file: " in capsys.readouterr().out
