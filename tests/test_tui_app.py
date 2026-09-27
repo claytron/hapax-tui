@@ -372,3 +372,21 @@ def test_a_refused_comment_edit_counts_as_unsaved(tmp_path):
         assert editor.dirty  # the text on screen is not what would be saved
 
     drive(path, script)
+
+
+def test_a_blank_required_field_is_named_under_the_field(tmp_path):
+    path = write(tmp_path, "Small.txt", SMALL)
+
+    async def script(app, pilot):
+        editor = app.screen
+        editor.query_one(TabbedContent).active = "s0"
+        await pilot.pause()
+        editor.query_one("#table0", DataTable).focus()
+        await pilot.press("a")
+        await pilot.pause()
+        editor.query_one("#f-cc", Input).value = "76"
+        await pilot.pause()
+        assert str(editor.query_one("#m-name").render()) == "required"
+        assert str(editor.query_one("#m-row").render()) == ""  # not the parser's "expected …"
+
+    drive(path, script)

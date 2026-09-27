@@ -19,6 +19,12 @@ class Column:
     restrict: str = NUMBER
     choices: tuple[str, ...] | None = None  # a Select instead of an Input
     types: frozenset[str] | None = None  # automation types that use it; None: every type
+    required: bool | frozenset[str] = False  # blank makes the line unparseable; a set: only for those types
+
+
+def required(column: Column, kind: str | None) -> bool:
+    """Whether the form must refuse this field blank, for the lane type `kind` (None outside [ASSIGN]/[AUTOMATION])."""
+    return column.required if isinstance(column.required, bool) else kind in column.required
 
 
 def _target(types: tuple[str, ...]) -> tuple[Column, ...]:
@@ -26,25 +32,30 @@ def _target(types: tuple[str, ...]) -> tuple[Column, ...]:
         return frozenset(names)
     return (
         Column("type", "TYPE", choices=types),
-        Column("cc", "CC", types=only("CC")),
-        Column("msb", "MSB", types=only("NRPN", "CC_PAIR")),
-        Column("lsb", "LSB", types=only("NRPN", "CC_PAIR")),
-        Column("depth", "DEPTH", types=only("NRPN")),
-        Column("cv", "CV", types=only("CV")),
+        Column("cc", "CC", types=only("CC"), required=True),
+        Column("msb", "MSB", types=only("NRPN", "CC_PAIR"), required=only("CC_PAIR")),  # NRPN::2000:7 omits it
+        Column("lsb", "LSB", types=only("NRPN", "CC_PAIR"), required=True),
+        Column("depth", "DEPTH", types=only("NRPN"), required=True),
+        Column("cv", "CV", types=only("CV"), required=True),
         Column("default", "DEFAULT", VOLTS, types=only("CC", "NRPN", "CC_PAIR", "CV")),
     )
 
 
-NAME = Column("name", "NAME", TEXT)
+NAME = Column("name", "NAME", TEXT, required=True)
 DEFAULT = Column("default", "DEFAULT")
 SECTIONS = {
-    "CC": (CcEntry, (Column("cc", "CC"), DEFAULT, NAME)),
-    "PC": (PcEntry, (Column("pc", "PC"), Column("msb", "MSB"), Column("lsb", "LSB"), NAME)),
-    "CC_PAIR": (CcPairEntry, (Column("msb", "MSB CC"), Column("lsb", "LSB CC"), DEFAULT, NAME)),
-    "NRPN": (NrpnEntry, (Column("msb", "MSB"), Column("lsb", "LSB"), Column("depth", "DEPTH"), DEFAULT, NAME)),
+    "CC": (CcEntry, (Column("cc", "CC", required=True), DEFAULT, NAME)),
+    "PC": (PcEntry, (Column("pc", "PC", required=True), Column("msb", "MSB"), Column("lsb", "LSB"), NAME)),
+    "CC_PAIR": (CcPairEntry, (
+        Column("msb", "MSB CC", required=True), Column("lsb", "LSB CC", required=True), DEFAULT, NAME)),
+    "NRPN": (NrpnEntry, (
+        Column("msb", "MSB"), Column("lsb", "LSB", required=True), Column("depth", "DEPTH", required=True), DEFAULT,
+        NAME)),
     "DRUMLANES": (DrumEntry, (
-        Column("row", "ROW"), Column("trig", "TRIG"), Column("chan", "CHAN", PORT), Column("note", "NOTE"), NAME)),
-    "ASSIGN": (AssignEntry, (Column("pot", "POT"), *_target(("CC", "NRPN", "CC_PAIR", "CV", "PB", "AT", "NULL")))),
+        Column("row", "ROW", required=True), Column("trig", "TRIG"), Column("chan", "CHAN", PORT),
+        Column("note", "NOTE"), NAME)),
+    "ASSIGN": (AssignEntry, (
+        Column("pot", "POT", required=True), *_target(("CC", "NRPN", "CC_PAIR", "CV", "PB", "AT", "NULL")))),
     "AUTOMATION": (AutomationEntry, _target(("CC", "NRPN", "CC_PAIR", "CV", "PB", "AT"))),
 }
 ORDER = (*SECTIONS, "COMMENT")  # the order the "+" tab offers missing sections in

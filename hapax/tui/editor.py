@@ -22,7 +22,7 @@ from .edits import (
     add_row, add_section, analyse, body_text, breaks, comment_text, comment_value, delete_line, move_row, row_text,
     rows, set_body, set_directive, set_line, tab_of,
 )
-from .sections import COMMENT, HEADER, ORDER, SECTIONS
+from .sections import COMMENT, HEADER, ORDER, SECTIONS, required
 
 
 def _cell(value) -> str:
@@ -97,8 +97,14 @@ class RowForm(Vertical):
         lines, n = self.candidate()
         _, found = analyse(lines, self.editor.fw)
         broken = breaks(self.editor.findings, found)
-        messages = defaultdict(list)
+        kind, values = self.type(), self.values()
+        blank = [
+            c.field for c in self.columns
+            if (c.types is None or kind in c.types) and required(c, kind) and not values[c.field].strip()]
+        messages = defaultdict(list, {field: ["required"] for field in blank})
         for f in self.editor.visible([f for f in found if f.line == n]):
+            if blank and f.code == "syntax":
+                continue  # the parser's view of the blank field, said plainly above
             shown = f.field if any(c.field == f.field for c in self.columns) else "row"
             messages[shown].append(f.message)
         messages["row"] += [f"cannot apply: {f.message}" for f in broken if f.line != n]
