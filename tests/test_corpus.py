@@ -6,7 +6,7 @@ import pytest
 from hapax import LATEST, Severity, parse, validate
 from hapax.parse import _parse_line
 
-TESTDATA = Path(__file__).parent.parent / "testdata"
+TESTDATA = Path(__file__).parent / "testdata"
 MINE = sorted((TESTDATA / "mine").glob("*.txt"))
 COMMUNITY = sorted(p for p in (TESTDATA / "community").rglob("*.txt") if p.name != "template.txt")
 

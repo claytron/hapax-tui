@@ -6,7 +6,7 @@ import pytest
 
 from hapax import Severity, parse, validate
 
-PROBES = Path(__file__).parent.parent / "testdata" / "probes"
+PROBES = Path(__file__).parent / "testdata" / "probes"
 
 # First rejected line, or None for "loads". Transcribed from RESULTS.md and r2/RESULTS.md (OS 3.10).
 ON_3_10 = {
