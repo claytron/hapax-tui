@@ -406,3 +406,18 @@ def test_row_keys_act_only_when_the_table_has_focus(tmp_path):
         assert editor.lines == SMALL.split("\n")
 
     drive(path, script)
+
+
+def test_saving_with_refused_comment_text_asks(tmp_path):
+    path = write(tmp_path, "Note.txt", "VERSION 1\n[COMMENT]\nHello\n[/COMMENT]\n")
+
+    async def script(app, pilot):
+        editor = app.screen
+        editor.query_one("#text0", TextArea).text = "Hi\n[CC]"
+        await pilot.pause()
+        editor.query_one("#findings").focus()
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+        assert isinstance(app.screen, Dialog)
+
+    drive(path, script)

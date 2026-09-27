@@ -175,10 +175,12 @@ class Editor(Screen):
 
     @property
     def dirty(self) -> bool:
-        # A COMMENT text area holding a refused edit shows text that saving would not write.
-        refused = any(
+        return "\n".join(self.lines) != self.saved or self.refused_text()
+
+    def refused_text(self) -> bool:
+        """Whether a COMMENT text area shows a refused edit: text that saving would not write."""
+        return any(
             area.text != body_text(self.lines, self.doc.sections[int(area.id[4:])]) for area in self.query(TextArea))
-        return "\n".join(self.lines) != self.saved or refused
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -390,11 +392,13 @@ class Editor(Screen):
 
     def action_save(self) -> None:
         errors = sum(f.severity is Severity.ERROR for f in self.findings)
-        if not errors:
+        problems = [f"{errors} error{'s' * (errors != 1)} — the Hapax may reject this file."] * bool(errors) + [
+            "The COMMENT text shown would break the file; its last text that did not is saved instead."
+        ] * self.refused_text()
+        if not problems:
             self.write()
             return
-        title = f"{errors} error{'s' * (errors != 1)} — the Hapax may reject this file. Save anyway?"
-        self.app.push_screen(Dialog(title, [], "Save"), lambda ok: ok and self.write())
+        self.app.push_screen(Dialog(" ".join(problems) + " Save anyway?", [], "Save"), lambda ok: ok and self.write())
 
     def write(self) -> None:
         text = "\n".join(self.lines)
