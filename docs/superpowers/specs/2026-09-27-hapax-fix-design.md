@@ -48,14 +48,16 @@ Anything outside the rule stays a finding for the author to fix by hand.
 | `version` | Set the value to `1`, keeping any trailing comment. |
 | `name.char` | Transliterate: Unicode NFKD with combining marks dropped (`é`→`e`, `ü`→`u`), plus a small table (`ß`→`ss`, `æ`→`ae`, `ø`→`o`, curly quotes→straight, en/em dash→`-`). Characters with no mapping stay, and the finding remains. |
 | `default.ignored` | On 3.00–3.19: remove `DEFAULT=` from the `[CC]`, `[NRPN]` or `[CC_PAIR]` line and put it on the matching `[AUTOMATION]` line (see below). |
-| `automation.extra`, `assign.extra` | `CC:74:100` becomes `CC:74 DEFAULT=100`, as the warning already suggests. |
+| `automation.extra`, `assign.extra` | `CC:74:100` becomes `CC:74 DEFAULT=100`, as the warning already suggests; an out-of-range `:v` is removed instead. |
 
 Moving a section default:
 
-- A matching `[AUTOMATION]` line (same type and address) without a `DEFAULT=` gets it.
-- No matching line: one is appended to `[AUTOMATION]`, creating the section at the end of the file if needed, provided the section stays within 64 lines.
-- Hand fix instead when: the matching line already has a different `DEFAULT=`; the CC is 120–127 (unusable in `[AUTOMATION]`); the section is full.
+- Only into an existing lane: a matching `[AUTOMATION]` line (same type and address) without a `DEFAULT=` gets it; one with the same default just loses the section's copy.
+- No matching line: hand fix. Adding a lane would create automation the author never set up.
+- Hand fix too when the matching line already has a different `DEFAULT=`.
 - `CC_PAIR` `DEFAULT=` before 1.14 is not moved: that warning has a different cause and no automation-side equivalent is assumed.
+
+A `:v` whose value would be out of range as `DEFAULT=v` is removed rather than converted, and the fix says so.
 
 Fixes are applied, the document is re-parsed and re-validated, and fixing repeats until nothing changes, so one fix enabling another (a closed section exposing a stray close) settles in one run.
 

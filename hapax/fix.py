@@ -78,6 +78,8 @@ def _extra(f, doc, at, fw):
     kind = f.code.split(".")[0]  # automation or assign
     if entry.default is None and not any(g.severity is Severity.ERROR for g in _target(kind, lands, fw)):
         new, description = lands, f":{entry.extra} → DEFAULT={entry.extra}"
+    elif entry.default is None:
+        new, description = replace(entry, extra=None), f"removed ignored :{entry.extra} (out of range for DEFAULT=)"
     else:
         new, description = replace(entry, extra=None), f"removed ignored :{entry.extra}"
     return {f.line: [render(new)]}, description
@@ -113,24 +115,14 @@ def _move_default(f, doc, at, fw):
     lane = _lane_for(entry, str(entry.default))
     if any(g.severity is Severity.ERROR for g in _automation(lane, fw)):  # CC 120-127, bad NRPN address
         return None
-    sections = [s for s in doc.sections if s.name == "AUTOMATION"]
-    automation = [a for s in sections for a in s.entries]
-    edits = {f.line: [render(replace(entry, default=None))]}
+    # Only an existing lane: adding one would create automation the author never set up.
+    automation = [a for s in doc.sections if s.name == "AUTOMATION" for a in s.entries]
     same = next((a for a in automation if _lane(a) == _lane(lane)), None)
-    if same and same.default not in (None, lane.default):
+    if not same or same.default not in (None, lane.default):
         return None
-    if same and same.default is None:
+    edits = {f.line: [render(replace(entry, default=None))]}
+    if same.default is None:
         edits[same.line] = [render(replace(same, default=lane.default))]
-    elif not same:
-        if len(automation) >= 64 or sections and sections[0].end is None:
-            return None
-        new = render(lane) + eol(doc.lines)
-        if sections:
-            n = _last_used(doc, sections[0].start, sections[0].end)
-            edits[n] = [doc.lines[n - 1], _indent(doc.lines[n - 1]) + new]
-        else:
-            n = _last_used(doc, 1, len(doc.lines) + 1)
-            edits[n] = [doc.lines[n - 1], "[AUTOMATION]" + eol(doc.lines), new, "[/AUTOMATION]" + eol(doc.lines)]
     return edits, f"moved DEFAULT={entry.default} to [AUTOMATION]"
 
 

@@ -107,33 +107,26 @@ V310 = (3, 10)
      "[CC]\n74 Cutoff\n[/CC]\n[AUTOMATION]\nCC:74 DEFAULT=64\n[/AUTOMATION]\n"),
     ("[CC]\n74:64 Cutoff\n[/CC]\n[AUTOMATION]\nCC:74 DEFAULT=64\n[/AUTOMATION]\n",
      "[CC]\n74 Cutoff\n[/CC]\n[AUTOMATION]\nCC:74 DEFAULT=64\n[/AUTOMATION]\n"),
-    ("[CC]\n74:64 Cutoff\n[/CC]\n[AUTOMATION]\n  PB\n[/AUTOMATION]\n",
-     "[CC]\n74 Cutoff\n[/CC]\n[AUTOMATION]\n  PB\n  CC:74 DEFAULT=64\n[/AUTOMATION]\n"),
-    ("[CC]\n74:64 Cutoff\n75:1 Reso\n[/CC]\n",
-     "[CC]\n74 Cutoff\n75 Reso\n[/CC]\n[AUTOMATION]\nCC:74 DEFAULT=64\nCC:75 DEFAULT=1\n[/AUTOMATION]\n"),
     ("[NRPN]\n0:1026:7:5 FOO\n[/NRPN]\n[AUTOMATION]\nNRPN:8:2:7\n[/AUTOMATION]\n",
      "[NRPN]\n0:1026:7 FOO\n[/NRPN]\n[AUTOMATION]\nNRPN:8:2:7 DEFAULT=5\n[/AUTOMATION]\n"),
-    ("[CC_PAIR]\n1:33:DEFAULT=8000 Mod\n[/CC_PAIR]\n",
+    ("[CC_PAIR]\n1:33:DEFAULT=8000 Mod\n[/CC_PAIR]\n[AUTOMATION]\nCC_PAIR:1:33\n[/AUTOMATION]\n",
      "[CC_PAIR]\n1:33 Mod\n[/CC_PAIR]\n[AUTOMATION]\nCC_PAIR:1:33 DEFAULT=8000\n[/AUTOMATION]\n"),
     # Review focus 4: a name fix and a move on the same line both land.
-    ("[CC]\n74:64 Résonance\n[/CC]\n",
+    ("[CC]\n74:64 Résonance\n[/CC]\n[AUTOMATION]\nCC:74\n[/AUTOMATION]\n",
      "[CC]\n74 Resonance\n[/CC]\n[AUTOMATION]\nCC:74 DEFAULT=64\n[/AUTOMATION]\n"),
-    ("VERSION 1\r\n[CC]\r\n74:64 C\r\n[/CC]\r\n",
-     "VERSION 1\r\n[CC]\r\n74 C\r\n[/CC]\r\n[AUTOMATION]\r\nCC:74 DEFAULT=64\r\n[/AUTOMATION]\r\n"),
+    ("[CC]\r\n74:64 C\r\n[/CC]\r\n[AUTOMATION]\r\nCC:74 # lane\r\n[/AUTOMATION]\r\n",
+     "[CC]\r\n74 C\r\n[/CC]\r\n[AUTOMATION]\r\nCC:74 DEFAULT=64 # lane\r\n[/AUTOMATION]\r\n"),
 ])
-def test_section_defaults_move_to_automation_on_3_10(before, after):
+def test_section_defaults_move_to_an_existing_automation_lane_on_3_10(before, after):
     assert fixed(before, V310) == after
 
 
-FULL = "[CC]\n100:64 C\n[/CC]\n[AUTOMATION]\n" + "".join(f"CC:{i}\n" for i in range(64)) + "[/AUTOMATION]\n"
-
-
 @pytest.mark.parametrize("text, fw", [
+    ("[CC]\n74:64 C\n[/CC]\n", V310),  # no lane: adding one would create automation the author never set up
+    ("[CC]\n74:64 C\n[/CC]\n[AUTOMATION]\nCC:75\n[/AUTOMATION]\n", V310),  # no lane for CC 74
     ("[CC]\n74:64 C\n[/CC]\n[AUTOMATION]\nCC:74 DEFAULT=1\n[/AUTOMATION]\n", V310),  # conflicting default
-    ("[CC]\n120:64 C\n[/CC]\n", V310),  # CC 120-127 cannot be automated
-    (FULL, V310),  # no room for a 65th lane
     ("[CC]\n74:64 C\n[/CC]\n", LATEST),  # honoured on 3.20+: nothing to fix
-    ("[CC_PAIR]\n1:33:DEFAULT=8000 M\n[/CC_PAIR]\n", (1, 13)),  # a different cause
+    ("[CC_PAIR]\n1:33:DEFAULT=8000 M\n[/CC_PAIR]\n[AUTOMATION]\nCC_PAIR:1:33\n[/AUTOMATION]\n", (1, 13)),
 ])
 def test_section_defaults_left_for_a_hand_fix(text, fw):
     assert fix(text, fw) == (text, [])
@@ -143,6 +136,7 @@ def test_an_out_of_range_value_is_dropped_not_made_a_default():
     # :200 is ignored by the Hapax; DEFAULT=200 would be an error.
     before = "[AUTOMATION]\nCC:74:200\n[/AUTOMATION]\n"
     assert fixed(before) == "[AUTOMATION]\nCC:74\n[/AUTOMATION]\n"
+    assert "out of range" in fix(before)[1][0].description
 
 
 @pytest.mark.parametrize("text", ["ガ", "й", "½", "가"])

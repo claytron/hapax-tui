@@ -155,6 +155,6 @@ def test_fix_does_not_touch_a_file_that_is_not_utf8(tmp_path, capsys):
 
 
 def test_fix_takes_the_firmware(tmp_path):
-    path = write(tmp_path, "a.txt", "[CC]\n74:64 C\n[/CC]\n")
+    path = write(tmp_path, "a.txt", "[CC]\n74:64 C\n[/CC]\n[AUTOMATION]\nCC:74\n[/AUTOMATION]\n")
     run(["fix", "--fw", "3.10", str(path)])
     assert path.read_text() == "[CC]\n74 C\n[/CC]\n[AUTOMATION]\nCC:74 DEFAULT=64\n[/AUTOMATION]\n"
