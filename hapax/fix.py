@@ -1,5 +1,6 @@
 """Repair what has exactly one sensible repair; see docs/superpowers/specs/2026-09-27-hapax-fix-design.md."""
 
+import unicodedata
 from dataclasses import dataclass, replace
 
 from .parse import Document, parse
@@ -44,11 +45,45 @@ def _version(f, doc, at, fw):
     return {f.line: [render(replace(entry, value="1"))]}, f"VERSION {entry.value} → 1"
 
 
+# Letters NFKD does not decompose, and punctuation word processors substitute.
+_TABLE = str.maketrans({
+    "ß": "ss", "æ": "ae", "Æ": "AE", "ø": "o", "Ø": "O",
+    "‘": "'", "’": "'", "“": '"', "”": '"', "–": "-", "—": "-",
+})
+
+
+def transliterate(text: str) -> str:
+    """Nearest ASCII for accented letters and typographic punctuation; anything else is left as is."""
+    decomposed = unicodedata.normalize("NFKD", text.translate(_TABLE))
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+
+
+def _name_char(f, doc, at, fw):
+    entry = at[f.line]
+    old = getattr(entry, f.field)
+    new = transliterate(old)
+    if new == old:
+        return None
+    return {f.line: [render(replace(entry, **{f.field: new}))]}, f"{old!r} → {new!r}"
+
+
+def _extra(f, doc, at, fw):
+    entry = at[f.line]
+    if entry.default is None:
+        new, description = replace(entry, extra=None, default=str(entry.extra)), f":{entry.extra} → DEFAULT={entry.extra}"
+    else:
+        new, description = replace(entry, extra=None), f"removed ignored :{entry.extra}"
+    return {f.line: [render(new)]}, description
+
+
 _FIXES = {
     "section.unclosed": _close,
     "section.unclosed_eof": _close,
     "section.stray_close": _stray,
     "version": _version,
+    "name.char": _name_char,
+    "automation.extra": _extra,
+    "assign.extra": _extra,
 }
 
 

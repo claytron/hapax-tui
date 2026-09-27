@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from hapax import LATEST, Severity, parse, validate
-from hapax.fix import fix
+from hapax.fix import fix, transliterate
 
 TESTDATA = Path(__file__).parent / "testdata"
 CORPUS = sorted(TESTDATA.rglob("*.txt"))
@@ -70,3 +70,32 @@ def test_fixing_the_corpus_is_idempotent_and_adds_no_errors(path, fw):
     assert fix(once, fw) == (once, [])
     errors = lambda t: {f.code for f in validate(parse(t), fw) if f.severity is Severity.ERROR}
     assert errors(once) <= errors(text)
+
+
+def test_transliterate():
+    assert transliterate("Ærø—ﬁ “x” Résumé") == 'AEro-fi "x" Resume'
+    assert transliterate("Arrow→") == "Arrow→"
+
+
+@pytest.mark.parametrize("before, after", [
+    ("[CC]\n74 Resonänce\n[/CC]\n", "[CC]\n74 Resonance\n[/CC]\n"),
+    ("TRACKNAME Straße\n", "TRACKNAME Strasse\n"),
+    ("[CC]\n1 “Drive”\n[/CC]\n", '[CC]\n1 "Drive"\n[/CC]\n'),
+    ("[COMMENT]\nCafé notes\n[/COMMENT]\n", "[COMMENT]\nCafe notes\n[/COMMENT]\n"),
+    ("[AUTOMATION]\nCC:74:100\n[/AUTOMATION]\n", "[AUTOMATION]\nCC:74 DEFAULT=100\n[/AUTOMATION]\n"),
+    ("[AUTOMATION]\nCC:74:100 DEFAULT=5\n[/AUTOMATION]\n", "[AUTOMATION]\nCC:74 DEFAULT=5\n[/AUTOMATION]\n"),
+    ("[ASSIGN]\n1 CC:74:100\n[/ASSIGN]\n", "[ASSIGN]\n1 CC:74 DEFAULT=100\n[/ASSIGN]\n"),
+])
+def test_value_fixes(before, after):
+    assert fixed(before) == after
+
+
+def test_unmappable_characters_stay_and_are_still_reported():
+    text = fixed("[CC]\n1 Résumé→\n[/CC]\n")
+    assert text == "[CC]\n1 Resume→\n[/CC]\n"
+    assert "name.char" in codes(text)
+
+
+def test_nothing_mappable_means_no_fix():
+    text = "[CC]\n1 Arrow→\n[/CC]\n"
+    assert fix(text) == (text, [])
