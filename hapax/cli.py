@@ -1,4 +1,4 @@
-"""hapax validate|fix [--[no-]warn] [--fw VERSION] [paths...]"""
+"""hapax validate|fix [--[no-]warn] [--fw VERSION] [paths...]; anything else opens the editor"""
 
 import argparse
 import difflib
@@ -30,7 +30,13 @@ def _fix(name: str, path: Path, fw, diff: bool) -> tuple[list[Applied], list[Fin
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="hapax", description="Squarp Hapax instrument definition tools")
+    argv = sys.argv[1:] if argv is None else argv
+    if not argv or argv[0] not in ("validate", "fix", "-h", "--help"):
+        from .tui.app import main as tui  # Textual loads only for the editor
+
+        return tui(argv)
+    parser = argparse.ArgumentParser(
+        prog="hapax", description="Squarp Hapax instrument definition tools; with no command, the editor")
     commands = parser.add_subparsers(dest="command", required=True)
     validate_cmd = commands.add_parser("validate", help="check instrument definitions before copying them to the SD card")
     fix_cmd = commands.add_parser("fix", help="repair, in place, what has exactly one sensible repair")

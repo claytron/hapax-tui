@@ -68,7 +68,8 @@ def test_no_paths_means_the_current_directory(tmp_path, monkeypatch, capsys):
     ["validate", "does-not-exist"],
     ["validate", "--fw", "3.11", "."],
     ["validate", "--fw", "1.11", "."],
-    [],
+    ["--fw", "3.11"],  # the editor's options fail before it starts
+    ["no-such-dir/new.txt"],
 ])
 def test_usage_and_io_failures_exit_2(args, tmp_path, monkeypatch):
     write(tmp_path, "A.txt", "VERSION 1\n")
