@@ -12,7 +12,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import (
-    DataTable, Footer, Header, Input, Label, OptionList, Select, Static, TabbedContent, TabPane, TextArea,
+    DataTable, Footer, Header, Input, Label, OptionList, Select, Static, TabbedContent, TabPane, Tabs, TextArea,
 )
 
 from ..parse import Directive, Entry, Finding, Section, Severity
@@ -278,12 +278,13 @@ class Editor(Screen):
         table.focus()
 
     def current(self) -> tuple[int, DataTable] | None:
-        """The active section tab's index and table, if it has one and it has focus: row keys act on what is focused."""
+        """The active section tab's index and table, unless focus is on another widget (a form, the findings panel)."""
         active = self.query_one(TabbedContent).active
         if not active.startswith("s") or self.doc.sections[int(active[1:])].name == "COMMENT":
             return None
         table = self.query_one(f"#table{active[1:]}", DataTable)
-        return (int(active[1:]), table) if table.has_focus else None
+        # Switching tabs leaves focus on the tab bar, and adding a section leaves it nowhere; both mean this table.
+        return (int(active[1:]), table) if self.focused in (None, table) or isinstance(self.focused, Tabs) else None
 
     def cursor_line(self, i: int, table: DataTable) -> int | None:
         found = rows(self.doc, self.doc.sections[i])

@@ -421,3 +421,26 @@ def test_saving_with_refused_comment_text_asks(tmp_path):
         assert isinstance(app.screen, Dialog)
 
     drive(path, script)
+
+
+def test_a_adds_a_row_right_after_switching_tabs_or_adding_a_section(tmp_path):
+    path = write(tmp_path, "Small.txt", SMALL)
+
+    async def script(app, pilot):
+        editor = app.screen
+        editor.query_one(TabbedContent).active = "s0"  # focus stays on the tab bar
+        await pilot.pause()
+        await pilot.press("a")
+        await pilot.pause()
+        assert editor.query(RowForm)
+        await pilot.press("escape")
+        editor.query_one(TabbedContent).active = "add"
+        await pilot.pause()
+        editor.query_one("#add-list").focus()
+        await pilot.press("enter")  # adds [PC]; focus goes nowhere
+        await pilot.pause()
+        await pilot.press("a")
+        await pilot.pause()
+        assert editor.query(RowForm)
+
+    drive(path, script)
