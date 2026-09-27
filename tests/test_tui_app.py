@@ -4,10 +4,10 @@ from pathlib import Path
 
 from textual.widgets import DataTable, Input, Select, TabbedContent, TextArea
 
-from hapax import LATEST, Severity
+from hapax import LATEST, Severity, parse, validate
 from hapax.tui.app import HapaxApp
 from hapax.tui.browser import Browser
-from hapax.tui.dialogs import Dialog
+from hapax.tui.dialogs import Dialog, NewFile
 from hapax.tui.editor import Editor, RowForm
 
 PEAK = Path(__file__).parent / "testdata" / "mine" / "Novation_Peak.txt"
@@ -284,3 +284,36 @@ def test_adding_a_section(tmp_path):
         assert editor.query_one(TabbedContent).active == "s2"
 
     drive(path, script)
+
+
+def test_a_new_file_validates_without_errors(tmp_path):
+    write(tmp_path, "Peak.txt", "VERSION 1\n")
+
+    async def script(app, pilot):
+        dialog = app.screen
+        assert isinstance(dialog, NewFile)
+        assert dialog.query_one("#name", Input).value == "New Synth"
+        dialog.query_one("#h-TYPE", Select).value = "POLY"
+        dialog.query_one("#h-OUTCHAN", Select).value = "1"
+        dialog.query_one("#h-TRACKNAME", Input).value = "Synth"
+        await pilot.click("#create")
+        await pilot.pause()
+        assert isinstance(app.screen, Editor)
+
+    drive(tmp_path / "New Synth", script)
+    text = (tmp_path / "New Synth.txt").read_text()
+    assert text == "VERSION 1\nTRACKNAME Synth\nTYPE POLY\nOUTCHAN 1\n"
+    assert [f for f in validate(parse(text)) if f.severity is Severity.ERROR] == []
+
+
+def test_a_new_file_refuses_an_existing_name(tmp_path):
+    write(tmp_path, "Peak.txt", "VERSION 1\n")
+
+    async def script(app, pilot):
+        app.screen.query_one("#name", Input).value = "peak"  # SD cards ignore case
+        await pilot.click("#create")
+        await pilot.pause()
+        assert isinstance(app.screen, NewFile)
+        assert "already exists" in str(app.screen.query_one("#problem").render())
+
+    drive(tmp_path / "Other.txt", script)

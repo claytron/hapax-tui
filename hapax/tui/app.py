@@ -8,7 +8,7 @@ from textual.app import App
 from ..files import read
 from ..rules import LATEST, RELEASES, fw_str, parse_fw
 from .browser import Browser
-from .dialogs import Dialog
+from .dialogs import Dialog, NewFile
 from .edits import open_text
 from .editor import Editor
 
@@ -26,6 +26,8 @@ class HapaxApp(App):
         self.push_screen(Browser(directory))
         if self.path.is_file():
             self.open_file(self.path)
+        elif not self.path.exists():
+            self.new_file(directory, self.path.name)
 
     def open_file(self, path: Path) -> None:
         """The open gate: offer the fixer's changes, refuse what no form can show, then edit."""
@@ -49,6 +51,13 @@ class HapaxApp(App):
             self.push_screen(Dialog(f"{path.name} needs these fixes", lines, "Apply and open"), edit)
         else:
             edit(True)
+
+    def new_file(self, directory: Path, name: str = "") -> None:
+        def created(path: Path | None) -> None:
+            if path:
+                self.open_file(path)
+
+        self.push_screen(NewFile(directory, self.fw, name), created)
 
     async def action_quit(self) -> None:
         if isinstance(self.screen, Editor) and self.screen.dirty:

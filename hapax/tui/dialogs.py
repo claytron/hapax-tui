@@ -1,10 +1,14 @@
 """Modal dialogs: confirm or notice, and the new-file form."""
 
+from pathlib import Path
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, Select, Static
 
+from ..rules import check_file_name
+from .edits import new_file_path, new_file_text
 from .sections import HEADER, TEXT, header_choices
 
 
@@ -53,3 +57,57 @@ def header_fields(fw, values: dict[str, str | None]):
 def header_value(widget: Input | Select) -> str | None:
     value = widget.value
     return None if value is Select.NULL or not str(value).strip() else str(value).strip()
+
+
+class NewFile(ModalScreen[Path | None]):
+    """File name and header fields; creating writes the file and dismisses with its path."""
+
+    BINDINGS = [("escape", "dismiss(None)", "Cancel")]
+    DEFAULT_CSS = """
+    NewFile { align: center middle; }
+    NewFile > Vertical { width: 80; height: auto; max-height: 95%; border: thick $accent; padding: 1 2; }
+    NewFile Horizontal { height: auto; margin-top: 1; }
+    NewFile #problem { color: $warning; }
+    """
+
+    def __init__(self, directory: Path, fw, name: str = ""):
+        super().__init__()
+        self.directory, self.fw, self.name_text = directory, fw, name
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("New instrument definition")
+            yield Label("File name")
+            yield Input(self.name_text, id="name", restrict=TEXT)
+            yield Static("", id="problem", markup=False)
+            yield from header_fields(self.fw, {})
+            with Horizontal():
+                yield Button("Create", id="create", variant="primary")
+                yield Button("Cancel", id="cancel")
+
+    def on_mount(self) -> None:
+        self.check_name(self.name_text)
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id == "name":
+            self.check_name(event.value)
+
+    def check_name(self, name: str) -> None:
+        found = check_file_name(name)
+        self.query_one("#problem", Static).update(found[0].message if found else "")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "cancel":
+            self.dismiss(None)
+            return
+        path = new_file_path(self.directory, self.query_one("#name", Input).value)
+        if isinstance(path, str):
+            self.query_one("#problem", Static).update(path)
+            return
+        values = {key: header_value(self.query_one(f"#h-{key}")) for key in HEADER}
+        try:
+            path.write_bytes(new_file_text(values).encode("utf-8"))
+        except OSError as e:
+            self.query_one("#problem", Static).update(str(e))
+            return
+        self.dismiss(path)
