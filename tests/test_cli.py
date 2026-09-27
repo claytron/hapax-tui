@@ -82,3 +82,23 @@ def test_long_file_name_warns(tmp_path, capsys):
     write(tmp_path, "A" * 28 + ".txt", "VERSION 1\n")
     assert run(["validate", str(tmp_path)]) == 0
     assert "1 warning\n  W file: " in capsys.readouterr().out
+
+
+def test_no_warn_hides_warnings(tmp_path, capsys):
+    path = write(tmp_path, "w.txt", "VERSION 2\nOUTCHAN 17\n")
+    assert run(["validate", "--no-warn", str(path)]) == 1
+    out = capsys.readouterr().out.splitlines()
+    assert out[0] == f"{path}  1 error"
+    assert out[1].startswith("  E line 2: ")
+    assert out[-1] == "1 file, 1 error — Hapax OS 3.21"
+
+
+def test_no_warn_ignores_strict(tmp_path):
+    path = write(tmp_path, "w.txt", "VERSION 2\n")
+    assert run(["validate", "--no-warn", "--strict", str(path)]) == 0
+
+
+def test_warn_is_the_default_and_can_be_given(tmp_path, capsys):
+    path = write(tmp_path, "w.txt", "VERSION 2\n")
+    run(["validate", "--warn", str(path)])
+    assert capsys.readouterr().out.endswith("0 errors, 1 warning — Hapax OS 3.21\n")

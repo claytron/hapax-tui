@@ -1,4 +1,4 @@
-"""hapax validate [--strict] [--fw VERSION] [paths...]"""
+"""hapax validate [--strict] [--[no-]warn] [--fw VERSION] [paths...]"""
 
 import argparse
 import sys
@@ -46,6 +46,9 @@ def main(argv: list[str] | None = None) -> int:
         "--fw", default=fw_str(LATEST),
         help=f"target firmware, {RELEASES[0]} to {RELEASES[-1]} (default: %(default)s)")
     cmd.add_argument("--strict", action="store_true", help="warnings also fail the exit code")
+    cmd.add_argument(
+        "--warn", action=argparse.BooleanOptionalAction, default=True,
+        help="report warnings (default: on); --no-warn shows errors only")
     args = parser.parse_args(argv)
 
     try:
@@ -62,6 +65,8 @@ def main(argv: list[str] | None = None) -> int:
     for name, path in files:
         try:
             findings = check_file_name(path.name) + _check(path, fw)
+            if not args.warn:
+                findings = [f for f in findings if f.severity is Severity.ERROR]
         except OSError as e:
             print(f"hapax: {e}", file=sys.stderr)
             return 2
@@ -74,6 +79,6 @@ def main(argv: list[str] | None = None) -> int:
             where = f"line {f.line}" if f.line else "file"
             print(f"  {'E' if f.severity is Severity.ERROR else 'W'} {where}: {f.message}")
 
-    print(f"\n{_plural(len(files), 'file')}, {_plural(errors, 'error')}, "
-          f"{_plural(warnings, 'warning')} — Hapax OS {fw_str(fw)}")
+    counts = [_plural(len(files), "file"), _plural(errors, "error")] + [_plural(warnings, "warning")] * args.warn
+    print(f"\n{', '.join(counts)} — Hapax OS {fw_str(fw)}")
     return 1 if errors or (args.strict and warnings) else 0

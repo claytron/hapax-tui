@@ -19,7 +19,7 @@ That stage is not part of this design.
 ## Scope
 
 ```text
-hapax validate [--strict] [--fw VERSION] [paths...]
+hapax validate [--strict] [--[no-]warn] [--fw VERSION] [paths...]
 ```
 
 Each path is a file or a directory; a directory expands to the `*.txt` files directly inside it.
@@ -335,6 +335,8 @@ Plain text, no colour — Rich arrives with Textual at the TUI stage.
 - A path that does not exist, no `.txt` files found at all, or an unsupported `--fw`, exits 2 with a message.
 - Exit codes: 0 clean, 1 findings that count, 2 usage or I/O failure.
 - `--strict` makes warnings count toward the exit code.
+- `--no-warn` drops warnings entirely: not printed, not counted, left out of the summary, so `--strict` has nothing to act on.
+  `--warn` is the default.
 
 ## Layout
 
