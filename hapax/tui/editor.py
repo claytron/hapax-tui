@@ -9,27 +9,134 @@ from pathlib import Path
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import VerticalScroll
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import (
     DataTable, Footer, Header, Input, Label, OptionList, Select, Static, TabbedContent, TabPane, TextArea,
 )
 
-from ..parse import Finding, Section, Severity
+from ..parse import Directive, Entry, Finding, Section, Severity
 from ..rules import check_file_name, fw_str
 from .dialogs import Dialog, header_fields, header_value
-from .edits import analyse, body_text, rows, set_directive, tab_of
-from .sections import ORDER, SECTIONS
+from .edits import (
+    add_row, analyse, body_text, breaks, comment_text, comment_value, delete_line, move_row, row_text, rows,
+    set_directive, set_line, tab_of,
+)
+from .sections import COMMENT, HEADER, ORDER, SECTIONS
 
 
 def _cell(value) -> str:
     return "—" if value is None else str(value)
 
 
+class RowForm(Vertical):
+    """Edits one row, or adds one; every change is rendered and validated in place."""
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+    def __init__(self, section: Section, n: int | None, adding: bool, editor: "Editor"):
+        super().__init__(id="form")
+        self.section, self.n, self.adding, self.editor = section, n, adding, editor
+        self.cls, columns = SECTIONS[section.name]
+        self.original: Entry | None = None if adding else editor.at.get(n)
+        self.comment = not adding and self.original is None  # a "# ..." row
+        self.columns = (COMMENT,) if self.comment else columns
+
+    def initial(self, field: str) -> str:
+        if self.comment:
+            return comment_value(self.editor.lines[self.n - 1])
+        if self.original is None:
+            return "CC" if field == "type" else ""
+        value = getattr(self.original, field)
+        return "" if value is None else str(value)
+
+    def compose(self) -> ComposeResult:
+        with Horizontal():
+            for c in self.columns:
+                with Vertical(id=f"c-{c.field}", classes="column"):
+                    yield Label(c.label)
+                    value = self.initial(c.field)
+                    if c.choices:
+                        choices = c.choices if value in c.choices else (*c.choices, value)
+                        yield Select([(x, x) for x in choices], value=value, allow_blank=False, id=f"f-{c.field}")
+                    else:
+                        yield Input(value, id=f"f-{c.field}", restrict=c.restrict)
+                    yield Static("", id=f"m-{c.field}", classes="message", markup=False)
+        yield Static("", id="m-row", classes="message", markup=False)
+
+    def on_mount(self) -> None:
+        self.show_types()
+        self.check()
+
+    def type(self) -> str | None:
+        return str(self.query_one("#f-type", Select).value) if any(c.field == "type" for c in self.columns) else None
+
+    def show_types(self) -> None:
+        kind = self.type()
+        for c in self.columns:
+            self.query_one(f"#c-{c.field}").display = c.types is None or kind in c.types
+
+    def values(self) -> dict[str, str]:
+        kind = self.type()
+        return {
+            c.field: str(self.query_one(f"#f-{c.field}").value) if c.types is None or kind in c.types else ""
+            for c in self.columns
+        }
+
+    def candidate(self) -> tuple[list[str], int]:
+        lines = self.editor.lines
+        if self.comment:
+            return set_line(lines, self.n, comment_text(lines[self.n - 1], self.values()["text"])), self.n
+        text = row_text(self.cls, self.original, self.values())
+        if self.adding:
+            return add_row(lines, self.section, self.n, text)
+        return set_line(lines, self.n, text), self.n
+
+    def check(self) -> list[Finding]:
+        """Show the candidate's findings under their fields; return what would break the file."""
+        lines, n = self.candidate()
+        _, found = analyse(lines, self.editor.fw)
+        broken = breaks(self.editor.findings, found)
+        messages = defaultdict(list)
+        for f in self.editor.visible([f for f in found if f.line == n]):
+            shown = f.field if any(c.field == f.field for c in self.columns) else "row"
+            messages[shown].append(f.message)
+        messages["row"] += [f"cannot apply: {f.message}" for f in broken if f.line != n]
+        for c in (*self.columns, None):
+            key = c.field if c else "row"
+            self.query_one(f"#m-{key}", Static).update("\n".join(messages[key]))
+        return broken
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        event.stop()
+        self.show_types()
+        self.check()
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        event.stop()
+        self.check()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        event.stop()
+        if self.check():
+            return
+        lines, n = self.candidate()
+        self.remove()
+        self.editor.apply(lines, n)
+
+    def action_cancel(self) -> None:
+        self.remove()
+        self.editor.focus_row(self.n)
+
+
 class Editor(Screen):
     BINDINGS = [
         Binding("ctrl+s", "save", "Save"),
         Binding("w", "warnings", "Warnings"),
+        Binding("a", "add", "Add row"),
+        Binding("d", "delete", "Delete row"),
+        Binding("ctrl+up,shift+up", "move(-1)", "Move up"),  # macOS takes ctrl+arrows for Mission Control
+        Binding("ctrl+down,shift+down", "move(1)", "Move down"),
         Binding("escape", "leave", "Back"),
     ]
     DEFAULT_CSS = """
@@ -158,6 +265,59 @@ class Editor(Screen):
             table.move_cursor(row=found.index(n))
         table.focus()
 
+    def current(self) -> tuple[int, DataTable] | None:
+        """The active section tab's index and table, if it has one."""
+        active = self.query_one(TabbedContent).active
+        if not active.startswith("s") or self.doc.sections[int(active[1:])].name == "COMMENT":
+            return None
+        return int(active[1:]), self.query_one(f"#table{active[1:]}", DataTable)
+
+    def cursor_line(self, i: int, table: DataTable) -> int | None:
+        found = rows(self.doc, self.doc.sections[i])
+        return found[table.cursor_row] if found else None
+
+    async def open_form(self, i: int, n: int | None, adding: bool, field: str | None = None) -> None:
+        await self.close_form()
+        form = RowForm(self.doc.sections[i], n, adding, self)
+        await self.query_one(f"#s{i}", TabPane).mount(form)
+        target = form.query(f"#f-{field}") if field else form.query("Input")
+        (target.first() if target else form.query("Input, Select").first()).focus()
+
+    async def close_form(self) -> None:
+        await self.query("#form").remove()
+
+    async def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        table_id = event.data_table.id or ""
+        if table_id == "findings":
+            await self.jump(self.shown[int(event.row_key.value)])
+        elif table_id.startswith("table"):
+            await self.open_form(int(table_id[5:]), int(event.row_key.value), adding=False)
+
+    async def jump(self, f: Finding) -> None:
+        """Show a finding where it is: its tab, its row, and the form field it names."""
+        tab = tab_of(self.doc, f.line) if f.line else None
+        tabs = self.query_one(TabbedContent)
+        if f.line and tab is None:
+            tabs.active = "header"
+            entry = self.at.get(f.line)
+            if isinstance(entry, Directive) and entry.key in HEADER:
+                self.query_one(f"#h-{entry.key}").focus()
+        elif tab is not None and self.doc.sections[tab].name == "COMMENT":
+            tabs.active = f"s{tab}"
+            area = self.query_one(f"#text{tab}", TextArea)
+            area.focus()
+            area.move_cursor((f.line - self.doc.sections[tab].start - 1, 0))
+        elif tab is not None:
+            self.focus_row(f.line)
+            if f.field and f.line in self.at:
+                await self.open_form(tab, f.line, adding=False, field=f.field)
+
+    async def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
+        # A form's line numbers belong to its tab. A jump activates the tab and opens the form before this arrives.
+        for form in self.query(RowForm):
+            if form.parent is not event.pane:
+                await form.remove()
+
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id and event.input.id.startswith("h-"):
             self.set_header(event.input.id[2:], header_value(event.input))
@@ -172,6 +332,28 @@ class Editor(Screen):
         same = current == value if key == "TRACKNAME" else (current or "").upper() == (value or "").upper()
         if not same:
             self.apply(set_directive(self.lines, self.doc, key, value))
+
+    async def action_add(self) -> None:
+        if current := self.current():
+            i, table = current
+            await self.open_form(i, self.cursor_line(i, table), adding=True)
+
+    def action_delete(self) -> None:
+        if not (current := self.current()) or (n := self.cursor_line(*current)) is None:
+            return
+
+        def delete(ok: bool | None) -> None:
+            if ok:
+                self.apply(delete_line(self.lines, n))
+
+        self.app.push_screen(Dialog(f"Delete line {n}?", [self.lines[n - 1].strip()], "Delete"), delete)
+
+    def action_move(self, step: int) -> None:
+        if not (current := self.current()) or (n := self.cursor_line(*current)) is None:
+            return
+        i, _ = current
+        if moved := move_row(self.lines, self.doc, self.doc.sections[i], n, step):
+            self.apply(*moved)
 
     def action_warnings(self) -> None:
         self.show_warnings = not self.show_warnings

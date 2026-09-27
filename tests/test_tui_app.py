@@ -1,13 +1,14 @@
 import asyncio
+import shutil
 from pathlib import Path
 
-from textual.widgets import DataTable, Input, Select
+from textual.widgets import DataTable, Input, Select, TabbedContent
 
 from hapax import LATEST, Severity
 from hapax.tui.app import HapaxApp
 from hapax.tui.browser import Browser
 from hapax.tui.dialogs import Dialog
-from hapax.tui.editor import Editor
+from hapax.tui.editor import Editor, RowForm
 
 PEAK = Path(__file__).parent / "testdata" / "mine" / "Novation_Peak.txt"
 SMALL = """\
@@ -24,6 +25,7 @@ OUTCHAN 1
 Hello
 [/COMMENT]
 """
+
 
 def drive(path: Path, script, fw=LATEST, warn=True):
     """Run the app on path headless and hand a pilot to script."""
@@ -157,5 +159,96 @@ def test_quitting_with_unsaved_changes_asks(tmp_path):
         await pilot.click("#no")
         await pilot.pause()
         assert isinstance(app.screen, Editor)
+
+    drive(path, script)
+
+
+def test_editing_a_name_and_saving_changes_only_that_line(tmp_path):
+    path = tmp_path / PEAK.name
+    shutil.copy(PEAK, path)
+    before = path.read_bytes().decode().split("\n")
+
+    async def script(app, pilot):
+        editor = app.screen
+        assert isinstance(editor, Editor) and not editor.dirty
+        cc = next(i for i, s in enumerate(editor.doc.sections) if s.name == "CC")
+        editor.query_one(TabbedContent).active = f"s{cc}"
+        await pilot.pause()
+        table = editor.query_one(f"#table{cc}", DataTable)
+        table.focus()
+        table.move_cursor(row=1)
+        await pilot.press("enter")
+        await pilot.pause()
+        name = editor.query_one("#f-name", Input)
+        name.value = "Renamed"
+        name.focus()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert not editor.query(RowForm)
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+
+    drive(path, script)
+    after = path.read_bytes().decode().split("\n")
+    changed = [n for n, (a, b) in enumerate(zip(before, after)) if a != b]
+    assert len(before) == len(after) and len(changed) == 1
+    assert after[changed[0]].split(" ", 1)[1] == "Renamed"
+
+
+def test_selecting_a_finding_opens_its_row_at_its_field(tmp_path):
+    path = write(tmp_path, "Small.txt", SMALL)
+
+    async def script(app, pilot):
+        editor = app.screen
+        findings = editor.query_one("#findings", DataTable)
+        findings.focus()
+        findings.move_cursor(row=next(k for k, f in enumerate(editor.shown) if f.code == "cc.range"))
+        await pilot.press("enter")
+        await pilot.pause()
+        assert editor.query_one(TabbedContent).active == "s0"
+        assert editor.query_one("#table0", DataTable).cursor_row == 2  # 74, the comment, 130
+        assert app.focused.id == "f-cc"
+
+    drive(path, script)
+
+
+def test_a_row_form_refuses_a_blank_name(tmp_path):
+    path = write(tmp_path, "Small.txt", SMALL)
+
+    async def script(app, pilot):
+        editor = app.screen
+        editor.query_one(TabbedContent).active = "s0"
+        await pilot.pause()
+        editor.query_one("#table0", DataTable).focus()
+        await pilot.press("a")
+        await pilot.pause()
+        editor.query_one("#f-cc", Input).value = "76"
+        editor.query_one("#f-name", Input).focus()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert editor.query(RowForm) and not editor.dirty
+        await pilot.press(*"Env #2")
+        assert editor.query_one("#f-name", Input).value == "Env 2"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert editor.lines[5] == "76 Env 2"
+
+    drive(path, script)
+
+
+def test_moving_and_deleting_rows(tmp_path):
+    path = write(tmp_path, "Small.txt", SMALL)
+
+    async def script(app, pilot):
+        editor = app.screen
+        editor.query_one(TabbedContent).active = "s0"
+        await pilot.pause()
+        editor.query_one("#table0", DataTable).focus()
+        await pilot.press("shift+down")
+        assert editor.lines[4:6] == ["# envelope", "74 Cutoff # filter"]
+        await pilot.press("d")
+        await pilot.click("#yes")
+        await pilot.pause()
+        assert "74 Cutoff # filter" not in editor.lines
 
     drive(path, script)
