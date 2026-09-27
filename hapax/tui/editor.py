@@ -276,11 +276,12 @@ class Editor(Screen):
         table.focus()
 
     def current(self) -> tuple[int, DataTable] | None:
-        """The active section tab's index and table, if it has one."""
+        """The active section tab's index and table, if it has one and it has focus: row keys act on what is focused."""
         active = self.query_one(TabbedContent).active
         if not active.startswith("s") or self.doc.sections[int(active[1:])].name == "COMMENT":
             return None
-        return int(active[1:]), self.query_one(f"#table{active[1:]}", DataTable)
+        table = self.query_one(f"#table{active[1:]}", DataTable)
+        return (int(active[1:]), table) if table.has_focus else None
 
     def cursor_line(self, i: int, table: DataTable) -> int | None:
         found = rows(self.doc, self.doc.sections[i])

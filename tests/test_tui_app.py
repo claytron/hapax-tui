@@ -390,3 +390,19 @@ def test_a_blank_required_field_is_named_under_the_field(tmp_path):
         assert str(editor.query_one("#m-row").render()) == ""  # not the parser's "expected …"
 
     drive(path, script)
+
+
+def test_row_keys_act_only_when_the_table_has_focus(tmp_path):
+    path = write(tmp_path, "Small.txt", SMALL)
+
+    async def script(app, pilot):
+        editor = app.screen
+        editor.query_one(TabbedContent).active = "s0"
+        await pilot.pause()
+        editor.query_one("#findings").focus()
+        await pilot.press("d", "shift+down", "a")
+        await pilot.pause()
+        assert app.screen is editor and not editor.query(RowForm)
+        assert editor.lines == SMALL.split("\n")
+
+    drive(path, script)
