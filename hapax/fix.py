@@ -4,7 +4,7 @@ import unicodedata
 from dataclasses import dataclass, replace
 
 from .parse import AutomationEntry, CcEntry, CcPairEntry, Document, NrpnEntry, Severity, parse
-from .rules import LATEST, _automation, _nrpn_key, validate
+from .rules import LATEST, _automation, _nrpn_key, _target, validate
 from .write import eol, render
 
 
@@ -54,8 +54,13 @@ _TABLE = str.maketrans({
 
 def transliterate(text: str) -> str:
     """Nearest ASCII for accented letters and typographic punctuation; anything else is left as is."""
-    decomposed = unicodedata.normalize("NFKD", text.translate(_TABLE))
-    return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+    return "".join(_ascii(ch) for ch in text)
+
+
+def _ascii(ch: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", ch.translate(_TABLE))
+    new = "".join(c for c in decomposed if not unicodedata.combining(c))
+    return new if new.isascii() else ch  # ガ -> カ would be a different letter, not a fix
 
 
 def _name_char(f, doc, at, fw):
@@ -69,8 +74,10 @@ def _name_char(f, doc, at, fw):
 
 def _extra(f, doc, at, fw):
     entry = at[f.line]
-    if entry.default is None:
-        new, description = replace(entry, extra=None, default=str(entry.extra)), f":{entry.extra} → DEFAULT={entry.extra}"
+    lands = replace(entry, extra=None, default=str(entry.extra))
+    kind = f.code.split(".")[0]  # automation or assign
+    if entry.default is None and not any(g.severity is Severity.ERROR for g in _target(kind, lands, fw)):
+        new, description = lands, f":{entry.extra} → DEFAULT={entry.extra}"
     else:
         new, description = replace(entry, extra=None), f"removed ignored :{entry.extra}"
     return {f.line: [render(new)]}, description

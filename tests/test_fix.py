@@ -137,3 +137,14 @@ FULL = "[CC]\n100:64 C\n[/CC]\n[AUTOMATION]\n" + "".join(f"CC:{i}\n" for i in ra
 ])
 def test_section_defaults_left_for_a_hand_fix(text, fw):
     assert fix(text, fw) == (text, [])
+
+
+def test_an_out_of_range_value_is_dropped_not_made_a_default():
+    # :200 is ignored by the Hapax; DEFAULT=200 would be an error.
+    before = "[AUTOMATION]\nCC:74:200\n[/AUTOMATION]\n"
+    assert fixed(before) == "[AUTOMATION]\nCC:74\n[/AUTOMATION]\n"
+
+
+@pytest.mark.parametrize("text", ["ガ", "й", "½", "가"])
+def test_transliterate_leaves_what_it_cannot_make_ascii(text):
+    assert transliterate(text) == text
