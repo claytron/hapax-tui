@@ -177,3 +177,13 @@ def test_new_file_path(tmp_path):
     assert new_file_path(tmp_path, "Synth.txt") == tmp_path / "Synth.txt"
     for bad in ("", " ", ".txt", "peak.TXT", "a/b", ".hidden"):
         assert isinstance(new_file_path(tmp_path, bad), str), bad
+
+
+def test_inserting_after_a_last_line_without_a_newline_keeps_crlf():
+    assert insert_line(["a\r", "b"], 2, "x") == ["a\r", "b\r", "x"]
+    assert insert_line(["a", "b"], 2, "x") == ["a", "b", "x"]
+
+
+def test_add_section_to_a_crlf_file_without_a_final_newline():
+    lines = ["VERSION 1\r", "[CC]\r", "[/CC]"]
+    assert add_section(lines, "PC") == ["VERSION 1\r", "[CC]\r", "[/CC]\r", "[PC]\r", "[/PC]"]

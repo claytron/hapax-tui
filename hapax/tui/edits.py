@@ -44,6 +44,8 @@ def set_line(lines: list[str], n: int, text: str) -> list[str]:
 
 def insert_line(lines: list[str], after: int, text: str) -> list[str]:
     """text as a new line after line `after` (0: first)."""
+    if after == len(lines):  # after a last line with no newline: it gets one, and text becomes the last line
+        return [*lines[:-1], lines[-1].removesuffix("\r") + eol(lines), text]
     return [*lines[:after], text + eol(lines), *lines[after:]]
 
 
@@ -84,8 +86,7 @@ def add_row(lines: list[str], section: Section, after: int | None, text: str) ->
 def add_section(lines: list[str], name: str) -> list[str]:
     """[name] and [/name] at the end of the file, before its final newline."""
     end = len(lines) - (lines[-1] == "")
-    tail = eol(lines)
-    return [*lines[:end], f"[{name}]{tail}", f"[/{name}]{tail}", *lines[end:]]
+    return insert_line(insert_line(lines, end, f"[{name}]"), end + 1, f"[/{name}]")
 
 
 def set_body(lines: list[str], section: Section, text: str) -> list[str]:
