@@ -22,3 +22,5 @@ Record `loads fine` or `SYNTAX ERROR line N`, plus anything in the "Look for" co
 Rejected: PC `1` and `1:1:NULL` with no name, a drum lane with no name, and every name-rejected character in `[COMMENT]` (``% & ; [ \ ] ^ ` { | } ~ é``, each reported on its own line as the others were deleted).
 Accepted: `[COMMENT]` and `[CC]` still open at end of file (the comment shows, CC74 is named), CC names up to 100 characters, a 64-character TRACKNAME, a 64-character file name.
 Display: the CC list shows the first 15 characters of a name (L16 through L100 all read `…012345`); the track header shows the first 9 of the track name (`H02-56789`), the NAME field 8 before it scrolls.
+The file list shows about 27 characters of a file name (`H03_LONG_FILE_NAME_xxxxxxxx`); on the selected row the LOAD button covers the tail.
+A 64-character name still loads.
