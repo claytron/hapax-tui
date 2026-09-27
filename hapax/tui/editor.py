@@ -19,8 +19,8 @@ from ..parse import Directive, Entry, Finding, Section, Severity
 from ..rules import check_file_name, fw_str
 from .dialogs import Dialog, header_fields, header_value
 from .edits import (
-    add_row, analyse, body_text, breaks, comment_text, comment_value, delete_line, move_row, row_text, rows,
-    set_directive, set_line, tab_of,
+    add_row, add_section, analyse, body_text, breaks, comment_text, comment_value, delete_line, move_row, row_text,
+    rows, set_body, set_directive, set_line, tab_of,
 )
 from .sections import COMMENT, HEADER, ORDER, SECTIONS
 
@@ -332,6 +332,23 @@ class Editor(Screen):
         same = current == value if key == "TRACKNAME" else (current or "").upper() == (value or "").upper()
         if not same:
             self.apply(set_directive(self.lines, self.doc, key, value))
+
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        i = int(event.text_area.id[4:])
+        new = set_body(self.lines, self.doc.sections[i], event.text_area.text)
+        if new == self.lines:
+            return
+        broken = breaks(self.findings, analyse(new, self.fw)[1])
+        self.query_one(f"#textmsg{i}", Static).update(f"not applied: {broken[0].message}" if broken else "")
+        if not broken:
+            self.apply(new)
+
+    async def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        self.lines = add_section(self.lines, str(event.option.prompt))
+        self.analyse()
+        await self.recompose()
+        self.on_mount()
+        self.query_one(TabbedContent).active = f"s{len(self.doc.sections) - 1}"
 
     async def action_add(self) -> None:
         if current := self.current():

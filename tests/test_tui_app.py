@@ -2,7 +2,7 @@ import asyncio
 import shutil
 from pathlib import Path
 
-from textual.widgets import DataTable, Input, Select, TabbedContent
+from textual.widgets import DataTable, Input, Select, TabbedContent, TextArea
 
 from hapax import LATEST, Severity
 from hapax.tui.app import HapaxApp
@@ -250,5 +250,37 @@ def test_moving_and_deleting_rows(tmp_path):
         await pilot.click("#yes")
         await pilot.pause()
         assert "74 Cutoff # filter" not in editor.lines
+
+    drive(path, script)
+
+
+def test_a_comment_section_refuses_text_that_closes_it(tmp_path):
+    path = write(tmp_path, "Small.txt", SMALL)
+
+    async def script(app, pilot):
+        editor = app.screen
+        area = editor.query_one("#text1", TextArea)
+        area.text = "Hi\n[/COMMENT]"
+        await pilot.pause()
+        assert editor.lines[10] == "Hello"
+        area.text = "Hi there"
+        await pilot.pause()
+        assert editor.lines[10] == "Hi there"
+
+    drive(path, script)
+
+
+def test_adding_a_section(tmp_path):
+    path = write(tmp_path, "Small.txt", SMALL)
+
+    async def script(app, pilot):
+        editor = app.screen
+        editor.query_one(TabbedContent).active = "add"
+        await pilot.pause()
+        editor.query_one("#add-list").focus()
+        await pilot.press("enter")  # PC, the first missing section
+        await pilot.pause()
+        assert editor.lines[-3:] == ["[PC]", "[/PC]", ""]
+        assert editor.query_one(TabbedContent).active == "s2"
 
     drive(path, script)
