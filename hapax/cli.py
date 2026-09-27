@@ -36,7 +36,12 @@ def main(argv: list[str] | None = None) -> int:
 
         return tui(argv)
     parser = argparse.ArgumentParser(
-        prog="hapax", description="Squarp Hapax instrument definition tools; with no command, the editor")
+        prog="hapax", description="Squarp Hapax instrument definition tools; with no command, the editor",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(  # the editor parses its own options (tui/app.py), so they are not arguments here
+            "editor:\n"
+            "  hapax [--fw VERSION] [--[no-]warn] [PATH]\n"
+            "  PATH: a directory to browse (default: .), a file to edit, or a new file to create"))
     commands = parser.add_subparsers(dest="command", required=True)
     validate_cmd = commands.add_parser("validate", help="check instrument definitions before copying them to the SD card")
     fix_cmd = commands.add_parser("fix", help="repair, in place, what has exactly one sensible repair")

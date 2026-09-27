@@ -159,3 +159,8 @@ def test_fix_takes_the_firmware(tmp_path):
     path = write(tmp_path, "a.txt", "[CC]\n74:64 C\n[/CC]\n[AUTOMATION]\nCC:74\n[/AUTOMATION]\n")
     run(["fix", "--fw", "3.10", str(path)])
     assert path.read_text() == "[CC]\n74 C\n[/CC]\n[AUTOMATION]\nCC:74 DEFAULT=64\n[/AUTOMATION]\n"
+
+
+def test_help_shows_how_to_open_the_editor(capsys):
+    assert run(["--help"]) == 0
+    assert "hapax [--fw VERSION] [--[no-]warn] [PATH]" in capsys.readouterr().out
