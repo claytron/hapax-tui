@@ -1,3 +1,5 @@
+import os
+
 import pytest
 
 from hapax.cli import main
@@ -102,3 +104,57 @@ def test_warn_is_the_default_and_can_be_given(tmp_path, capsys):
     path = write(tmp_path, "w.txt", "VERSION 2\n")
     run(["validate", "--warn", str(path)])
     assert capsys.readouterr().out.endswith("0 errors, 1 warning — Hapax OS 3.21\n")
+
+def test_fix_rewrites_in_place_and_reports(tmp_path, capsys):
+    path = write(tmp_path, "a.txt", "VERSION 2\n[CC]\n74 Cutoff\n")
+    assert run(["fix", str(path)]) == 0
+    assert path.read_text() == "VERSION 1\n[CC]\n74 Cutoff\n[/CC]\n"
+    assert capsys.readouterr().out == (
+        f"{path}  2 fixes\n"
+        "  F line 1: VERSION 2 → 1\n"
+        "  F line 2: closed [CC]\n"
+        "\n"
+        "1 file, 2 fixes, 0 errors, 0 warnings — Hapax OS 3.21\n"
+    )
+
+
+def test_fix_keeps_crlf(tmp_path):
+    path = tmp_path / "a.txt"
+    path.write_bytes(b"VERSION 2\r\n[CC]\r\n74 x\r\n")
+    run(["fix", str(path)])
+    assert path.read_bytes() == b"VERSION 1\r\n[CC]\r\n74 x\r\n[/CC]\r\n"
+
+
+def test_fix_diff_writes_nothing(tmp_path, capsys):
+    path = write(tmp_path, "a.txt", "VERSION 2\n")
+    assert run(["fix", "--diff", str(path)]) == 0
+    assert path.read_text() == "VERSION 2\n"
+    out = capsys.readouterr().out
+    assert "-VERSION 2\n+VERSION 1\n" in out
+
+
+def test_fix_leaves_clean_files_alone(tmp_path):
+    path = write(tmp_path, "a.txt", "VERSION 1\n")
+    os.utime(path, ns=(0, 0))
+    assert run(["fix", str(path)]) == 0
+    assert path.stat().st_mtime_ns == 0
+
+
+def test_fix_exits_1_when_errors_remain(tmp_path, capsys):
+    path = write(tmp_path, "a.txt", "[CC]\n200 x\n[/CC]\n")
+    assert run(["fix", str(path)]) == 1
+    assert "  E line 2: " in capsys.readouterr().out
+
+
+def test_fix_does_not_touch_a_file_that_is_not_utf8(tmp_path, capsys):
+    path = tmp_path / "a.txt"
+    path.write_bytes(b"VERSION 2\n\xff\n")
+    assert run(["fix", str(path)]) == 1
+    assert path.read_bytes() == b"VERSION 2\n\xff\n"
+    assert "  E file: not valid UTF-8" in capsys.readouterr().out
+
+
+def test_fix_takes_the_firmware(tmp_path):
+    path = write(tmp_path, "a.txt", "[CC]\n74:64 C\n[/CC]\n")
+    run(["fix", "--fw", "3.10", str(path)])
+    assert path.read_text() == "[CC]\n74 C\n[/CC]\n[AUTOMATION]\nCC:74 DEFAULT=64\n[/AUTOMATION]\n"
