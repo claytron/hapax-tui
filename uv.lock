@@ -12,7 +12,7 @@ wheels = [
 ]
 
 [[package]]
-name = "hapax"
+name = "hapax-tui"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
