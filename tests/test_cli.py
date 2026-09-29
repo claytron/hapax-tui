@@ -164,3 +164,13 @@ def test_fix_takes_the_firmware(tmp_path):
 def test_help_shows_how_to_open_the_editor(capsys):
     assert run(["--help"]) == 0
     assert "hapax [--fw VERSION] [--[no-]warn] [PATH]" in capsys.readouterr().out
+
+
+def test_warn_off_in_the_config_hides_warnings(tmp_path, config_home, capsys):
+    (config_home / "hapax").mkdir(parents=True)
+    (config_home / "hapax" / "config.toml").write_text("warn = false\n")
+    (tmp_path / "Old.txt").write_text("VERSION 2\n")
+    main(["validate", str(tmp_path)])
+    assert "warning" not in capsys.readouterr().out
+    main(["validate", "--warn", str(tmp_path)])
+    assert "1 warning" in capsys.readouterr().out

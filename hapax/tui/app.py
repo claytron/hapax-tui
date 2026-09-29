@@ -5,6 +5,7 @@ from pathlib import Path
 
 from textual.app import App
 
+from .. import config
 from ..files import read
 from ..rules import LATEST, RELEASES, fw_str, parse_fw
 from .browser import Browser
@@ -16,11 +17,13 @@ from .editor import Editor
 class HapaxApp(App):
     TITLE = "hapax"
 
-    def __init__(self, path: Path, fw=LATEST, warn: bool = True):
+    def __init__(self, path: Path, fw=LATEST, warn: bool = True, theme: str | None = None):
         super().__init__()
-        self.path, self.fw, self.warn = path, fw, warn
+        self.path, self.fw, self.warn, self.saved_theme = path, fw, warn, theme
 
     def on_mount(self) -> None:
+        if self.saved_theme in self.available_themes:
+            self.theme = self.saved_theme
         # The browser is always underneath, so leaving the editor or a dialog lands somewhere useful.
         directory = self.path if self.path.is_dir() else self.path.parent
         self.push_screen(Browser(directory))
@@ -28,6 +31,11 @@ class HapaxApp(App):
             self.open_file(self.path)
         elif not self.path.exists():
             self.new_file(directory, self.path.name)
+
+    def watch_theme(self, theme: str) -> None:
+        if self.is_mounted and theme != self.saved_theme:  # a pick from the command palette
+            self.saved_theme = theme
+            config.save_theme(theme)
 
     def open_file(self, path: Path) -> None:
         """The open gate: offer the fixer's changes, refuse what no form can show, then edit."""
@@ -74,8 +82,10 @@ def main(argv: list[str]) -> int:
         help="a directory to browse, a file to edit, or a new file to create (default: .)")
     parser.add_argument(
         "--fw", default=fw_str(LATEST), help=f"target firmware, {RELEASES[0]} to {RELEASES[-1]} (default: %(default)s)")
+    settings = config.load()
     parser.add_argument(
-        "--warn", action=argparse.BooleanOptionalAction, default=True, help="show warnings at start (default: on)")
+        "--warn", action=argparse.BooleanOptionalAction, default=settings.get("warn", True),
+        help=f"show warnings at start (default: {'on' if settings.get('warn', True) else 'off'}, from {config.path()})")
     args = parser.parse_args(argv)
     try:
         fw = parse_fw(args.fw)
@@ -83,5 +93,5 @@ def main(argv: list[str]) -> int:
         parser.error(str(e))
     if not args.path.exists() and not args.path.parent.is_dir():
         parser.error(f"{args.path.parent}: no such directory")
-    HapaxApp(args.path, fw, args.warn).run()
+    HapaxApp(args.path, fw, args.warn, settings.get("theme")).run()
     return 0

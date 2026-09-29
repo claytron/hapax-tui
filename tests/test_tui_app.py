@@ -444,3 +444,34 @@ def test_a_adds_a_row_right_after_switching_tabs_or_adding_a_section(tmp_path):
         assert editor.query(RowForm)
 
     drive(path, script)
+
+
+def test_a_picked_theme_is_saved_and_restored(tmp_path, config_home):
+    async def pick(app, pilot):
+        app.theme = "nord"
+
+    drive(tmp_path, pick)
+    assert (config_home / "hapax" / "config.toml").read_text() == 'theme = "nord"\n'
+
+    async def check(app, pilot):
+        assert app.theme == "nord"
+
+    async def go():
+        app = HapaxApp(tmp_path, theme="nord")
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await check(app, pilot)
+    asyncio.run(go())
+
+
+def test_saving_the_theme_keeps_the_rest_of_the_config(config_home):
+    from hapax import config
+
+    path = config_home / "hapax" / "config.toml"
+    path.parent.mkdir(parents=True)
+    path.write_text("# noisy synths\nwarn = false\n\ntheme = \"nord\"  # old\n")
+    config.save_theme("gruvbox")
+    assert path.read_text() == "# noisy synths\nwarn = false\n\ntheme = \"gruvbox\"\n"
+    path.write_text("warn = false\n")
+    config.save_theme("nord")
+    assert path.read_text() == "theme = \"nord\"\nwarn = false\n"

@@ -5,6 +5,7 @@ import difflib
 import sys
 from pathlib import Path
 
+from . import config
 from .files import check, expand, read
 from .fix import Applied, fix
 from .parse import Finding, Severity, parse
@@ -45,14 +46,15 @@ def main(argv: list[str] | None = None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     validate_cmd = commands.add_parser("validate", help="check instrument definitions before copying them to the SD card")
     fix_cmd = commands.add_parser("fix", help="repair, in place, what has exactly one sensible repair")
+    warn = config.load().get("warn", True)
     for cmd in (validate_cmd, fix_cmd):
         cmd.add_argument("paths", nargs="*", type=Path, default=[Path(".")], help="files or directories (default: .)")
         cmd.add_argument(
             "--fw", default=fw_str(LATEST),
             help=f"target firmware, {RELEASES[0]} to {RELEASES[-1]} (default: %(default)s)")
         cmd.add_argument(
-            "--warn", action=argparse.BooleanOptionalAction, default=True,
-            help="report warnings (default: on); --no-warn shows errors only")
+            "--warn", action=argparse.BooleanOptionalAction, default=warn,
+            help=f"report warnings (default: {'on' if warn else 'off'}, from {config.path()}); --no-warn shows errors only")
     validate_cmd.add_argument("--strict", action="store_true", help="warnings also fail the exit code")
     fix_cmd.add_argument("--diff", action="store_true", help="print a diff and write nothing")
     args = parser.parse_args(argv)
