@@ -94,3 +94,7 @@ warn = false     # default for --warn / --no-warn
 uv sync
 uv run pytest
 ```
+
+## License
+
+MIT; see [LICENSE](LICENSE).
