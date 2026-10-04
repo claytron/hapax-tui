@@ -7,6 +7,7 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, Select, Static
 
+from ..parse import Finding, Severity
 from ..rules import check_file_name
 from .edits import new_file_path, new_file_text
 from .sections import HEADER, TEXT, header_choices
@@ -39,19 +40,44 @@ class Dialog(ModalScreen[bool]):
         self.dismiss(event.button.id == "yes")
 
 
+class Field(Horizontal):
+    """A label beside its value widget, one row of the header form; show() marks it with its findings."""
+
+    DEFAULT_CSS = """
+    Field { height: auto; margin-bottom: 1; }
+    Field > Label { width: 20; padding-right: 2; text-align: right; }
+    Field > Input, Field > Select { width: 1fr; max-width: 40; }
+    Field > .message { width: 1fr; padding-left: 2; }
+    Field.warning > Label, Field.warning > .message { color: $warning; text-style: bold; }
+    Field.error > Label, Field.error > .message { color: $error; text-style: bold; }
+    """
+
+    def __init__(self, label: str, widget: Input | Select):
+        super().__init__(Label(label), widget, Static("", classes="message", markup=False))
+        self.key = widget.id[2:]
+
+    def show(self, findings: list[Finding]) -> None:
+        errors = any(f.severity is Severity.ERROR for f in findings)
+        self.set_class(errors, "error")
+        self.set_class(bool(findings) and not errors, "warning")
+        self.query_one(".message", Static).update(
+            "\n".join(f"{'●' if f.severity is Severity.ERROR else '○'} {f.message}" for f in findings))
+
+
 def header_fields(fw, values: dict[str, str | None]):
-    """One labelled widget per header directive, with ids h-KEY; shared by the header tab and the new-file dialog."""
-    for key in HEADER:
-        yield Label(key)
+    """One labelled widget per header directive, with ids h-KEY; shared by the General tab and the new-file dialog."""
+    for key, label in HEADER.items():
         value = values.get(key)
         choices = header_choices(key, fw)
         if choices is None:
-            yield Input(value or "", id=f"h-{key}", restrict=TEXT, compact=True)
-            continue
-        current = value.upper() if value else None
-        if current and current not in choices:  # an invalid value stays visible, with its finding
-            choices = (*choices, current)
-        yield Select([(c, c) for c in choices], id=f"h-{key}", value=current or Select.NULL, compact=True)
+            widget = Input(value or "", id=f"h-{key}", restrict=TEXT, compact=True)
+        else:
+            current = value.upper() if value else None
+            if current and current not in choices:  # an invalid value stays visible, with its finding
+                choices = (*choices, current)
+            widget = Select([(c, c) for c in choices], id=f"h-{key}", value=current or Select.NULL, compact=True,
+                            prompt="(not set)")
+        yield Field(label, widget)
 
 
 def header_value(widget: Input | Select) -> str | None:

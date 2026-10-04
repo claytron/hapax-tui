@@ -112,6 +112,21 @@ def test_a_header_value_that_is_not_a_choice_shows_and_does_not_dirty(tmp_path):
     drive(path, script)
 
 
+def test_a_header_field_with_an_error_is_marked_until_fixed(tmp_path):
+    path = write(tmp_path, "Chan.txt", "VERSION 1\nOUTCHAN 17\n")
+
+    async def script(app, pilot):
+        editor = app.screen
+        field = editor.query_one("#h-OUTCHAN").parent
+        assert field.has_class("error")
+        assert "OUTCHAN 17" in str(field.query_one(".message").render())
+        editor.query_one("#h-OUTCHAN", Select).value = "3"
+        await pilot.pause()
+        assert not field.has_class("error")
+
+    drive(path, script)
+
+
 def test_saving_with_errors_asks_first(tmp_path):
     path = write(tmp_path, "Chan.txt", "VERSION 1\nOUTCHAN 17\nTRACKNAME Old\n")
 

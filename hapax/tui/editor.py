@@ -17,7 +17,7 @@ from textual.widgets import (
 
 from ..parse import Directive, Entry, Finding, Section, Severity
 from ..rules import check_file_name, fw_str
-from .dialogs import Dialog, header_fields, header_value
+from .dialogs import Dialog, Field, header_fields, header_value
 from .edits import (
     add_row, add_section, analyse, body_text, breaks, comment_text, comment_value, delete_line, move_row, row_text,
     rows, set_body, set_directive, set_line, tab_of,
@@ -185,7 +185,7 @@ class Editor(Screen):
     def compose(self) -> ComposeResult:
         yield Header()
         with TabbedContent(id="tabs"):
-            with TabPane("Header", id="header"), VerticalScroll():
+            with TabPane("General", id="header"), VerticalScroll():
                 yield from header_fields(self.fw, {d.key: d.value for d in self.doc.directives})
             for i, s in enumerate(self.doc.sections):
                 with TabPane(s.name, id=f"s{i}"):
@@ -217,13 +217,15 @@ class Editor(Screen):
             if f.line:
                 tab = tab_of(self.doc, f.line)
                 badges["header" if tab is None else f"s{tab}"][f.severity is Severity.WARNING] += 1
-        labels = {"header": "Header", **{f"s{i}": f"{s.name}({len(s.entries)})" for i, s in enumerate(self.doc.sections)}}
+        labels = {"header": "General", **{f"s{i}": f"{s.name}({len(s.entries)})" for i, s in enumerate(self.doc.sections)}}
         for tab_id, label in labels.items():
             errors, warnings = badges[tab_id]
             tabs.get_tab(tab_id).label = label + f" ●{errors}" * bool(errors) + f" ○{warnings}" * bool(warnings)
         for i, s in enumerate(self.doc.sections):
             if s.name != "COMMENT":
                 self.fill(i, s, by_line)
+        for field in self.query(Field):
+            field.show([f for d in self.doc.directives if d.key == field.key for f in by_line.get(d.line, [])])
         self.shown = shown
         table = self.query_one("#findings", DataTable)
         row = table.cursor_row
@@ -256,7 +258,7 @@ class Editor(Screen):
         if not f.line:
             return "file"
         tab = tab_of(self.doc, f.line)
-        return f"{'header' if tab is None else self.doc.sections[tab].name} line {f.line}"
+        return f"{'general' if tab is None else self.doc.sections[tab].name} line {f.line}"
 
     def apply(self, lines: list[str], focus: int | None = None) -> None:
         self.query(RowForm).remove()  # an open form's line number may now name another row

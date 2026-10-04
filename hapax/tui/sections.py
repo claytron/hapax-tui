@@ -61,7 +61,15 @@ SECTIONS = {
 ORDER = (*SECTIONS, "COMMENT")  # the order the "+" tab offers missing sections in
 COMMENT = Column("text", "#", r".*")  # a comment line inside a table section
 
-HEADER = ("TRACKNAME", "TYPE", "OUTPORT", "OUTCHAN", "INPORT", "INCHAN", "MAXRATE")  # VERSION: the fixer keeps it 1
+HEADER = {  # directive: label on the General tab; VERSION is left out, the fixer keeps it 1
+    "TRACKNAME": "Track name",
+    "TYPE": "Track type",
+    "OUTPORT": "MIDI out port",
+    "OUTCHAN": "MIDI out channel",
+    "INPORT": "MIDI in port",
+    "INCHAN": "MIDI in channel",
+    "MAXRATE": "Max CC rate",
+}
 
 
 def header_choices(key: str, fw: tuple[int, int]) -> tuple[str, ...] | None:
