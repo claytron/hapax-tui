@@ -4,6 +4,9 @@ import argparse
 from pathlib import Path
 
 from textual.app import App
+from textual.binding import Binding
+from textual.screen import ModalScreen
+from textual.widgets import Input, Select, TextArea
 
 from .. import config
 from ..files import read
@@ -11,11 +14,12 @@ from ..rules import LATEST, RELEASES, fw_str, parse_fw
 from .browser import Browser
 from .dialogs import Dialog, NewFile
 from .edits import open_text
-from .editor import Editor
+from .editor import Editor, RowForm
 
 
 class HapaxApp(App):
     TITLE = "hapax"
+    BINDINGS = [Binding("q", "quit_idle", "Quit")]
 
     def __init__(self, path: Path, fw=LATEST, warn: bool = True, theme: str | None = None):
         super().__init__()
@@ -66,6 +70,20 @@ class HapaxApp(App):
                 self.open_file(path)
 
         self.push_screen(NewFile(directory, self.fw, name), created)
+
+    def check_action(self, action: str, parameters) -> bool | None:
+        if action == "quit_idle" and self.editing():
+            return False  # q goes to the field instead; ctrl+q still quits
+        return True
+
+    def editing(self) -> bool:
+        """Whether a dialog, a field, or a row form is open: where q is not a request to quit."""
+        focused = self.focused
+        return isinstance(self.screen, ModalScreen) or bool(self.screen.query(RowForm)) or focused is not None and any(
+            isinstance(w, (Input, Select, TextArea)) for w in focused.ancestors_with_self)
+
+    async def action_quit_idle(self) -> None:
+        await self.action_quit()
 
     async def action_quit(self) -> None:
         if any(isinstance(s, Editor) and s.dirty for s in self.screen_stack):  # also under a dialog

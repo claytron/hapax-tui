@@ -11,6 +11,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
+from textual.widget import Widget
 from textual.widgets import (
     DataTable, Footer, Header, Input, Label, OptionList, Select, Static, TabbedContent, TabPane, Tabs, TextArea,
 )
@@ -139,10 +140,17 @@ class Editor(Screen):
     BINDINGS = [
         Binding("ctrl+s", "save", "Save"),
         Binding("w", "warnings", "Warnings"),
-        Binding("a", "add", "Add row"),
-        Binding("d", "delete", "Delete row"),
-        Binding("ctrl+up,shift+up", "move(-1)", "Move up"),  # macOS takes ctrl+arrows for Mission Control
-        Binding("ctrl+down,shift+down", "move(1)", "Move down"),
+        Binding("a", "add", "Add"),
+        Binding("d", "delete", "Delete"),
+        Binding("shift+up", "move(-1)", "Move row", show=False),
+        Binding("shift+down", "move(1)", "Move row", key_display="⇧↑/⇧↓"),
+        # Priority, so they navigate from inside fields too.
+        Binding("ctrl+h", "tab(-1)", "Tabs", show=False, priority=True),
+        # Without the kitty keyboard protocol (tmux, Terminal.app) ctrl+h arrives as backspace; fields take theirs first.
+        Binding("backspace", "tab(-1)", "Tabs", show=False),
+        Binding("ctrl+l", "tab(1)", "Tabs", key_display="^h/^l", priority=True),
+        Binding("ctrl+k", "area(-1)", "Areas", show=False, priority=True),
+        Binding("ctrl+j", "area(1)", "Areas", key_display="^j/^k", priority=True),
         Binding("escape", "leave", "Back"),
     ]
     DEFAULT_CSS = """
@@ -387,6 +395,32 @@ class Editor(Screen):
         i, _ = current
         if moved := move_row(self.lines, self.doc, self.doc.sections[i], n, step):
             self.apply(*moved)
+
+    def areas(self) -> list[Widget]:
+        """The tab bar, the active tab's content, and the findings panel, top to bottom."""
+        tabs = self.query_one(TabbedContent)
+        match tabs.active:
+            case "header":
+                content = self.query_one("#h-TRACKNAME")
+            case "add":
+                content = self.query_one("#add-list")
+            case active:
+                content = self.query_one(f"#{active}").query("DataTable, TextArea").first()
+        return [tabs.query_one(Tabs), content, self.query_one("#findings")]
+
+    def area(self) -> int:
+        areas = self.areas()
+        return 0 if self.focused is areas[0] else 2 if self.focused is areas[2] else 1
+
+    def action_area(self, step: int) -> None:
+        self.areas()[max(0, min(2, self.area() + step))].focus()
+
+    def action_tab(self, step: int) -> None:
+        area = self.area()
+        tabs = self.query_one(TabbedContent)
+        ids = [pane.id for pane in tabs.query(TabPane)]
+        tabs.active = ids[(ids.index(tabs.active) + step) % len(ids)]
+        self.areas()[area].focus()
 
     def action_warnings(self) -> None:
         self.show_warnings = not self.show_warnings

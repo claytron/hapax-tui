@@ -72,10 +72,12 @@ Findings show inline as you edit, and comments in the file are kept.
 | `ctrl+s` | Save |
 | `a` / `d` | Add / delete row |
 | `shift+↑` / `shift+↓` | Move row |
+| `ctrl+h` / `ctrl+l` | Previous / next tab |
+| `ctrl+k` / `ctrl+j` | Up / down between the tab bar, the tab, and the findings |
 | `w` | Toggle warnings |
 | `esc` | Back |
 | `n` | New file (browser) |
-| `q` | Quit (browser) |
+| `q` | Quit, when not in a field or form |
 
 `--fw` and `--[no-]warn` work here too.
 

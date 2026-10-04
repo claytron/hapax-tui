@@ -22,7 +22,7 @@ def status(path: Path, fw, warn: bool) -> str:
 
 
 class Browser(Screen):
-    BINDINGS = [("n", "new", "New"), ("q", "app.quit", "Quit")]
+    BINDINGS = [("n", "new", "New")]
 
     def __init__(self, directory: Path):
         super().__init__()

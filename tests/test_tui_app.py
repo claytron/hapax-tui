@@ -2,7 +2,7 @@ import asyncio
 import shutil
 from pathlib import Path
 
-from textual.widgets import DataTable, Input, Select, TabbedContent, TextArea
+from textual.widgets import DataTable, Input, Select, TabbedContent, Tabs, TextArea
 
 from hapax import LATEST, Severity, parse, validate
 from hapax.tui.app import HapaxApp
@@ -490,3 +490,45 @@ def test_saving_the_theme_keeps_the_rest_of_the_config(config_home):
     path.write_text("warn = false\n")
     config.save_theme("nord")
     assert path.read_text() == "theme = \"nord\"\nwarn = false\n"
+
+
+def test_ctrl_h_l_change_tabs_and_ctrl_j_k_change_areas(tmp_path):
+    path = write(tmp_path, "Small.txt", SMALL)
+
+    async def script(app, pilot):
+        editor = app.screen
+        tabs = editor.query_one(TabbedContent)
+        await pilot.press("ctrl+j")  # from the tab bar into the General form
+        assert editor.focused.id == "h-TRACKNAME"
+        await pilot.press("ctrl+l")  # from inside a field, keeping to the content area
+        assert tabs.active == "s0" and editor.focused.id == "table0"
+        await pilot.press("ctrl+j", "ctrl+j")
+        assert editor.focused.id == "findings"
+        await pilot.press("ctrl+k", "ctrl+k")
+        assert editor.focused is tabs.query_one(Tabs)
+        await pilot.press("ctrl+h", "ctrl+h")
+        assert tabs.active == "add"
+        await pilot.press("backspace")  # ctrl+h, through tmux
+        assert tabs.active == "s1"
+        await pilot.press("ctrl+h", "ctrl+h", "ctrl+j")
+        await pilot.press("backspace")  # in a field, still deletes
+        assert tabs.active == "header" and editor.query_one("#h-TRACKNAME", Input).value != "Synth"
+
+    drive(path, script)
+
+
+def test_q_quits_unless_editing(tmp_path):
+    path = write(tmp_path, "Small.txt", SMALL)
+
+    async def script(app, pilot):
+        editor = app.screen
+        editor.query_one("#h-TRACKNAME", Input).focus()
+        await pilot.press("q")
+        assert app.screen is editor and editor.query_one("#h-TRACKNAME", Input).value.endswith("q")
+        await pilot.press("ctrl+k", "q")  # off the field, with the change unsaved
+        await pilot.pause()
+        assert isinstance(app.screen, Dialog)
+        await pilot.press("q")  # a dialog is open: no second one
+        assert len(app.screen_stack) == 4
+
+    drive(path, script)
