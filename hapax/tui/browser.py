@@ -4,10 +4,11 @@ from pathlib import Path
 
 from textual.app import ComposeResult
 from textual.screen import Screen
-from textual.widgets import DataTable, Footer, Header
+from textual.widgets import Footer, Header
 
 from ..files import check, expand
 from ..parse import Severity
+from .lists import DataTable
 
 
 def status(path: Path, fw, warn: bool) -> str:

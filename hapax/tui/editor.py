@@ -13,7 +13,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widget import Widget
 from textual.widgets import (
-    DataTable, Footer, Header, Input, Label, OptionList, Select, Static, TabbedContent, TabPane, Tabs, TextArea,
+    Footer, Header, Input, Label, Select, Static, TabbedContent, TabPane, Tabs, TextArea,
 )
 
 from ..parse import Directive, Entry, Finding, Section, Severity
@@ -23,6 +23,7 @@ from .edits import (
     add_row, add_section, analyse, body_text, breaks, comment_text, comment_value, delete_line, move_row, row_text,
     rows, set_body, set_directive, set_line, tab_of,
 )
+from .lists import DataTable, OptionList
 from .sections import COMMENT, HEADER, ORDER, SECTIONS, required
 
 

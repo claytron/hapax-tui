@@ -71,6 +71,7 @@ Findings show inline as you edit, and comments in the file are kept.
 | --- | --- |
 | `ctrl+s` | Save |
 | `a` / `d` | Add / delete row |
+| `k` / `j` | Up / down a list, as well as `↑` / `↓` |
 | `shift+↑` / `shift+↓` | Move row |
 | `ctrl+h` / `ctrl+l` | Previous / next tab |
 | `ctrl+k` / `ctrl+j` | Up / down between the tab bar, the tab, and the findings |

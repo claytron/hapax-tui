@@ -55,6 +55,20 @@ def test_a_directory_lists_its_files_with_status(tmp_path):
     drive(tmp_path, script)
 
 
+def test_lists_move_with_j_and_k(tmp_path):
+    path = write(tmp_path, "Small.txt", SMALL)
+
+    async def script(app, pilot):
+        table = app.screen.query_one("#table0", DataTable)
+        table.focus()
+        await pilot.press("j", "j", "k")
+        assert table.cursor_row == 1
+        await pilot.press("down")
+        assert table.cursor_row == 2
+
+    drive(path, script)
+
+
 def test_the_gate_offers_fixes_and_the_editor_starts_unsaved(tmp_path):
     path = write(tmp_path, "Bom.txt", "﻿VERSION 1\n")
 
