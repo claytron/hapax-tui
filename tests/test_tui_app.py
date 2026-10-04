@@ -548,3 +548,33 @@ def test_question_mark_toggles_the_keys_panel_unless_editing(tmp_path):
         assert not editor.query("HelpPanel") and editor.query_one("#h-TRACKNAME", Input).value.endswith("?")
 
     drive(path, script)
+
+
+def test_assign_and_automation_rows_show_their_targets_names(tmp_path):
+    path = write(tmp_path, "Named.txt", """\
+VERSION 1
+[CC]
+74 Cutoff
+[/CC]
+[NRPN]
+1:2:7 Shape
+[/NRPN]
+[ASSIGN]
+1 CC:74
+2 NRPN:1:2:7
+3 PB
+[/ASSIGN]
+[AUTOMATION]
+CC:74
+CC:75
+[/AUTOMATION]
+""")
+
+    async def script(app, pilot):
+        def names(i):
+            table = app.screen.query_one(f"#table{i}", DataTable)
+            return [str(table.get_row_at(r)[-2]) for r in range(table.row_count)]
+        assert names(2) == ["Cutoff", "Shape", ""]
+        assert names(3) == ["Cutoff", ""]
+
+    drive(path, script)

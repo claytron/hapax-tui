@@ -30,6 +30,14 @@ def _cell(value) -> str:
     return "—" if value is None else str(value)
 
 
+TARGET = {"CC": ("cc",), "CC_PAIR": ("msb", "lsb"), "NRPN": ("msb", "lsb", "depth")}  # what names a lane's target
+NAMED = ("ASSIGN", "AUTOMATION")  # sections whose tables show their targets' names
+
+
+def _target(kind: str, entry) -> tuple | None:
+    return (kind, *(getattr(entry, f) for f in TARGET[kind])) if kind in TARGET else None
+
+
 class RowForm(Vertical):
     """Edits one row, or adds one; every change is rendered and validated in place."""
 
@@ -178,6 +186,7 @@ class Editor(Screen):
         self.doc, found = analyse(self.lines, self.fw)
         self.findings = check_file_name(self.path.name) + found
         self.at = {e.line: e for e in [*self.doc.directives, *(e for s in self.doc.sections for e in s.entries)]}
+        self.names = {_target(s.name, e): e.name for s in self.doc.sections if s.name in TARGET for e in s.entries}
 
     def visible(self, findings: list[Finding]) -> list[Finding]:
         return [f for f in findings if self.show_warnings or f.severity is Severity.ERROR]
@@ -248,8 +257,9 @@ class Editor(Screen):
     def fill(self, i: int, s: Section, by_line) -> None:
         table = self.query_one(f"#table{i}", DataTable)
         _, columns = SECTIONS[s.name]
+        named = s.name in NAMED
         if not table.columns:
-            table.add_columns(" ", *(c.label for c in columns), "")
+            table.add_columns(" ", *(c.label for c in columns), *["NAME"] * named, "")
         row = table.cursor_row
         table.clear()
         for n in rows(self.doc, s):
@@ -258,8 +268,10 @@ class Editor(Screen):
             entry = self.at.get(n)
             if entry:
                 cells = [_cell(getattr(entry, c.field)) for c in columns]
+                if named:
+                    cells.append(Text(self.names.get(_target(entry.type, entry), ""), "dim"))
             else:  # a comment line
-                cells = [Text(self.lines[n - 1].strip(), "dim"), *[""] * (len(columns) - 1)]
+                cells = [Text(self.lines[n - 1].strip(), "dim"), *[""] * (len(columns) - 1 + named)]
             table.add_row(mark, *cells, found[0].message if found else "", key=str(n))
         table.move_cursor(row=row)
 
