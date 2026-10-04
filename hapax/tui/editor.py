@@ -70,7 +70,7 @@ class RowForm(Vertical):
                         choices = c.choices if value in c.choices else (*c.choices, value)
                         yield Select([(x, x) for x in choices], value=value, allow_blank=False, id=f"f-{c.field}")
                     else:
-                        yield Input(value, id=f"f-{c.field}", restrict=c.restrict)
+                        yield Input(value, id=f"f-{c.field}", restrict=c.restrict, select_on_focus=False)
                     yield Static("", id=f"m-{c.field}", classes="message", markup=False)
         yield Static("", id="m-row", classes="message", markup=False)
 
