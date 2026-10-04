@@ -237,6 +237,8 @@ def test_selecting_a_finding_opens_its_row_at_its_field(tmp_path):
         assert editor.query_one(TabbedContent).active == "s0"
         assert editor.query_one("#table0", DataTable).cursor_row == 2  # 74, the comment, 130
         assert app.focused.id == "f-cc"
+        await pilot.press("5")
+        assert app.focused.value == "1305"
 
     drive(path, script)
 

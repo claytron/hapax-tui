@@ -70,7 +70,7 @@ def header_fields(fw, values: dict[str, str | None]):
         value = values.get(key)
         choices = header_choices(key, fw)
         if choices is None:
-            widget = Input(value or "", id=f"h-{key}", restrict=TEXT, compact=True)
+            widget = Input(value or "", id=f"h-{key}", restrict=TEXT, compact=True, select_on_focus=False)
         else:
             current = value.upper() if value else None
             if current and current not in choices:  # an invalid value stays visible, with its finding
@@ -104,7 +104,7 @@ class NewFile(ModalScreen[Path | None]):
         with Vertical():
             yield Label("New instrument definition")
             yield Label("File name")
-            yield Input(self.name_text, id="name", restrict=TEXT)
+            yield Input(self.name_text, id="name", restrict=TEXT, select_on_focus=False)
             yield Static("", id="problem", markup=False)
             yield from header_fields(self.fw, {})
             with Horizontal():
