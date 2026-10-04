@@ -1,0 +1,11 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "b22b4443e3bd96681fcf4184bd3d174f5afe607e",
+  "packages": {
+    ".": {
+      "release-type": "python",
+      "package-name": "hapax-tui",
+      "bump-minor-pre-major": true
+    }
+  }
+}
