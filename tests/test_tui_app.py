@@ -532,3 +532,19 @@ def test_q_quits_unless_editing(tmp_path):
         assert len(app.screen_stack) == 4
 
     drive(path, script)
+
+
+def test_question_mark_toggles_the_keys_panel_unless_editing(tmp_path):
+    path = write(tmp_path, "Small.txt", SMALL)
+
+    async def script(app, pilot):
+        editor = app.screen
+        await pilot.press("?")
+        assert editor.query("HelpPanel")
+        await pilot.press("?")
+        assert not editor.query("HelpPanel")
+        editor.query_one("#h-TRACKNAME", Input).focus()
+        await pilot.press("?")
+        assert not editor.query("HelpPanel") and editor.query_one("#h-TRACKNAME", Input).value.endswith("?")
+
+    drive(path, script)

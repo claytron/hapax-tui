@@ -77,6 +77,7 @@ Findings show inline as you edit, and comments in the file are kept.
 | `w` | Toggle warnings |
 | `esc` | Back |
 | `n` | New file (browser) |
+| `?` | Show / hide all keys, when not in a field or form |
 | `q` | Quit, when not in a field or form |
 
 `--fw` and `--[no-]warn` work here too.

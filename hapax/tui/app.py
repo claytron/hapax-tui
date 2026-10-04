@@ -19,7 +19,7 @@ from .editor import Editor, RowForm
 
 class HapaxApp(App):
     TITLE = "hapax"
-    BINDINGS = [Binding("q", "quit_idle", "Quit")]
+    BINDINGS = [Binding("q", "quit_idle", "Quit"), Binding("question_mark", "keys", "All keys")]
 
     def __init__(self, path: Path, fw=LATEST, warn: bool = True, theme: str | None = None):
         super().__init__()
@@ -72,8 +72,8 @@ class HapaxApp(App):
         self.push_screen(NewFile(directory, self.fw, name), created)
 
     def check_action(self, action: str, parameters) -> bool | None:
-        if action == "quit_idle" and self.editing():
-            return False  # q goes to the field instead; ctrl+q still quits
+        if action in ("quit_idle", "keys") and self.editing():
+            return False  # the key goes to the field instead; ctrl+q still quits
         return True
 
     def editing(self) -> bool:
@@ -81,6 +81,12 @@ class HapaxApp(App):
         focused = self.focused
         return isinstance(self.screen, ModalScreen) or bool(self.screen.query(RowForm)) or focused is not None and any(
             isinstance(w, (Input, Select, TextArea)) for w in focused.ancestors_with_self)
+
+    def action_keys(self) -> None:
+        if self.screen.query("HelpPanel"):
+            self.action_hide_help_panel()
+        else:
+            self.action_show_help_panel()
 
     async def action_quit_idle(self) -> None:
         await self.action_quit()

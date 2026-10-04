@@ -140,17 +140,18 @@ class Editor(Screen):
     BINDINGS = [
         Binding("ctrl+s", "save", "Save"),
         Binding("w", "warnings", "Warnings"),
-        Binding("a", "add", "Add"),
-        Binding("d", "delete", "Delete"),
-        Binding("shift+up", "move(-1)", "Move row", show=False),
-        Binding("shift+down", "move(1)", "Move row", key_display="⇧↑/⇧↓"),
+        Binding("a", "add", "Add row"),
+        Binding("d", "delete", "Delete row"),
+        # The rest are listed by ? rather than in the footer.
+        Binding("shift+up", "move(-1)", "Move row up", show=False),
+        Binding("shift+down", "move(1)", "Move row down", show=False),
         # Priority, so they navigate from inside fields too.
-        Binding("ctrl+h", "tab(-1)", "Tabs", show=False, priority=True),
+        Binding("ctrl+h", "tab(-1)", "Previous tab", show=False, priority=True),
         # Without the kitty keyboard protocol (tmux, Terminal.app) ctrl+h arrives as backspace; fields take theirs first.
-        Binding("backspace", "tab(-1)", "Tabs", show=False),
-        Binding("ctrl+l", "tab(1)", "Tabs", key_display="^h/^l", priority=True),
-        Binding("ctrl+k", "area(-1)", "Areas", show=False, priority=True),
-        Binding("ctrl+j", "area(1)", "Areas", key_display="^j/^k", priority=True),
+        Binding("backspace", "tab(-1)", "Previous tab", show=False),
+        Binding("ctrl+l", "tab(1)", "Next tab", show=False, priority=True),
+        Binding("ctrl+k", "area(-1)", "Area above", show=False, priority=True),
+        Binding("ctrl+j", "area(1)", "Area below", show=False, priority=True),
         Binding("escape", "leave", "Back"),
     ]
     DEFAULT_CSS = """
