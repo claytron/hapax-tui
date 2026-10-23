@@ -8,7 +8,7 @@ Check them before they go on the SD card, repair the obvious mistakes, and edit 
 Requires Python 3.13+.
 
 ```sh
-uv tool install git+https://github.com/claytron/hapax-tui
+uv tool install hapax-tui
 ```
 
 This installs the `hapax` command.
@@ -101,4 +101,4 @@ uv run pytest
 
 ## License
 
-MIT; see [LICENSE](LICENSE).
+MIT; see [LICENSE](https://github.com/claytron/hapax-tui/blob/main/LICENSE).
