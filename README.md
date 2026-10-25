@@ -5,7 +5,7 @@ Check them before they go on the SD card, repair the obvious mistakes, and edit 
 
 ## Install
 
-Requires Python 3.13+.
+Requires Python 3.13+, tested on 3.13, 3.14 and 3.15.
 
 ```sh
 uv tool install hapax-tui
