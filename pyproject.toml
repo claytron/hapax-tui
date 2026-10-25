@@ -1,14 +1,27 @@
 [project]
 name = "hapax-tui"
 version = "0.1.1"
-description = "Validate Squarp Hapax instrument definitions"
+description = "Validate, fix and edit Squarp Hapax instrument definitions"
 requires-python = ">=3.13"
 license = "MIT"
 readme = "README.md"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
+]
 dependencies = [
     "lark>=1.3",
     "textual>=8.2",
 ]
+
+[project.urls]
+Homepage = "https://github.com/claytron/hapax-tui"
+Issues = "https://github.com/claytron/hapax-tui/issues"
 
 [project.scripts]
 hapax = "hapax.cli:main"
