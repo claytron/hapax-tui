@@ -1,6 +1,6 @@
 [project]
 name = "hapax-tui"
-version = "1.0.0"
+version = "1.0.1"
 description = "Validate, fix and edit Squarp Hapax instrument definitions"
 requires-python = ">=3.13"
 license = "MIT"
