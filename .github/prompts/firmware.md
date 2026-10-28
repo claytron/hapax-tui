@@ -6,7 +6,7 @@ Add support for it and open a pull request.
 ## Sources
 
 - Changelog: https://squarp.net/hapax/firmware/ (find the `$VERSION` entry).
-- Binaries: `https://squarp.net/hapax/hapaxOS/<version>/hapax.bin`.
+- Binaries: `https://squarp.net/hapaxOS/<version>/hapax.bin`.
   Diff `strings` of the `$VERSION` bin against the previous release's bin to find new or removed definition-parser keywords.
 
 Only the changelog and the bin strings count as evidence.
