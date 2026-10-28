@@ -175,8 +175,8 @@ def test_cc_pair_default_is_ignored_before_1_14():
     assert codes("[CC_PAIR]\n1:33:DEFAULT=8192 x\n[/CC_PAIR]", (1, 13)) == [("default.ignored", 2)]
 
 
-def test_default_firmware_is_3_21():
-    assert LATEST == (3, 21)
+def test_default_firmware_is_3_22():
+    assert LATEST == (3, 22)
     assert validate(parse("TYPE POLYAT")) == []
 
 

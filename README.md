@@ -30,12 +30,12 @@ TR-8S.txt           2 warnings
   W line 109: only the first 15 characters are shown: 'AUTO FILL IN MA'
   W line 111: only the first 15 characters are shown: 'EXTERNAL IN LEV'
 
-14 files, 0 errors, 52 warnings — Hapax OS 3.21
+14 files, 0 errors, 52 warnings — Hapax OS 3.22
 ```
 
 Errors (`E`) are things the Hapax will reject or misread.
 Warnings (`W`) load, but probably not the way you meant.
-Rules follow the firmware you target, from 1.12 through 3.21 (the default).
+Rules follow the firmware you target, from 1.12 through 3.22 (the default).
 The exit code is 1 when there are errors, 2 when a path can't be read.
 
 ## Fix
