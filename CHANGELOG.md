@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/claytron/hapax-tui/compare/v1.0.0...v1.0.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* recognise Hapax OS 3.22 ([#14](https://github.com/claytron/hapax-tui/issues/14)) ([1bc7643](https://github.com/claytron/hapax-tui/commit/1bc7643f6c07ad4d2718137d8eaaf77d86ac8dfa))
+
 ## [1.0.0](https://github.com/claytron/hapax-tui/compare/v0.1.1...v1.0.0) (2026-10-25)
 
 
