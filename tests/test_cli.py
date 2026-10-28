@@ -28,7 +28,7 @@ def test_clean_directory_skips_dotfiles_and_backups(tmp_path, capsys):
         "A.txt  OK\n"
         "B.TXT  OK\n"
         "\n"
-        "2 files, 0 errors, 0 warnings — Hapax OS 3.21\n"
+        "2 files, 0 errors, 0 warnings — Hapax OS 3.22\n"
     )
 
 
@@ -93,7 +93,7 @@ def test_no_warn_hides_warnings(tmp_path, capsys):
     out = capsys.readouterr().out.splitlines()
     assert out[0] == f"{path}  1 error"
     assert out[1].startswith("  E line 2: ")
-    assert out[-1] == "1 file, 1 error — Hapax OS 3.21"
+    assert out[-1] == "1 file, 1 error — Hapax OS 3.22"
 
 
 def test_no_warn_ignores_strict(tmp_path):
@@ -104,7 +104,7 @@ def test_no_warn_ignores_strict(tmp_path):
 def test_warn_is_the_default_and_can_be_given(tmp_path, capsys):
     path = write(tmp_path, "w.txt", "VERSION 2\n")
     run(["validate", "--warn", str(path)])
-    assert capsys.readouterr().out.endswith("0 errors, 1 warning — Hapax OS 3.21\n")
+    assert capsys.readouterr().out.endswith("0 errors, 1 warning — Hapax OS 3.22\n")
 
 def test_fix_rewrites_in_place_and_reports(tmp_path, capsys):
     path = write(tmp_path, "a.txt", "VERSION 2\n[CC]\n74 Cutoff\n")
@@ -115,7 +115,7 @@ def test_fix_rewrites_in_place_and_reports(tmp_path, capsys):
         "  F line 1: VERSION 2 → 1\n"
         "  F line 2: closed [CC]\n"
         "\n"
-        "1 file, 2 fixes, 0 errors, 0 warnings — Hapax OS 3.21\n"
+        "1 file, 2 fixes, 0 errors, 0 warnings — Hapax OS 3.22\n"
     )
 
 

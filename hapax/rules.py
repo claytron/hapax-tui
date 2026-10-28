@@ -14,9 +14,9 @@ from .parse import (
 # squarp.net/hapax/firmware; below 1.12 the parser was "less strict" in undocumented ways.
 RELEASES = (
     "1.12", "1.13", "1.14", "1.15", "1.16", "2.00", "2.01", "2.02", "2.03", "2.10",
-    "2.11", "2.12", "2.13", "2.20", "2.21", "3.00", "3.10", "3.20", "3.21",
+    "2.11", "2.12", "2.13", "2.20", "2.21", "3.00", "3.10", "3.20", "3.21", "3.22",
 )
-LATEST = (3, 21)
+LATEST = (3, 22)
 
 # Probes P01, P02, C01-C23; identical on 2.21 and 3.10. Tab is whitespace from 1.14.
 NAME_SHOWN = 15  # H01: 100 characters load, the CC list shows 15

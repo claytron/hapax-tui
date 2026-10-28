@@ -69,6 +69,7 @@ Definition-relevant changes, from the keyword diff and the changelog:
 | 3.10 | Drum rows 9–16 |
 | 3.20 | `TYPE POLYAT` and `AFTR`; `DEFAULT=` in `[CC]`, `[NRPN]`, `[CC_PAIR]` honoured (silently ignored in 3.00 and 3.10); MPE type with a DIN `INPORT` checked |
 | 3.21 | No definition changes |
+| 3.22 | No definition changes |
 
 Firmware-dependent rules across the supported range, 1.12–3.21:
 
